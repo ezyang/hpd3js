@@ -1,0 +1,90 @@
+= hpd3js =
+
+Edward Z. Yang and ____
+
+(Place teaser image of visualization here, linked to running version.)
+
+== Description ==
+
+Describe your visualization here, including choice of visual encodings and interaction technique(s).
+
+== Source Files ==
+
+Place a link to your source code archive here. The archive should be uploaded as an attachment to this page.
+
+== Design Notebook ==
+
+hp is a heap profiling format used by GHC Haskell, which generates
+information about the contents of memory used by a program as it
+executes over time.  These heap profiles are extremely useful for
+tracking down space leaks and reasoning about the runtime space usage of
+programs.
+
+Currently, the most common use of this heap profiling information is
+to generate static, stacked line graphs of the following form:
+
+attachment:hp2pretty.png
+
+We'd like to extend this with interactivity.  Here are a few of the features
+we'd like to add:
+
+1. Annotations and sharing.  At the moment, the only way to share heap
+profile information is to share the source data, or convert it into a
+PostScript file and attach it to your document.  It would be nice if
+instead you could just upload the heap data, and you would get a
+permalink to a webpage with the data, possibly with extra commentary
+about points in time (pointing out that things have occurred).
+
+attachment:annotate.png
+
+2. Dynamically filtering and aggregating data.  At the moment, there are
+a variety of options which specify what data to collect when profiling
+programs.
+
+attachment:multiple-options.png
+
+Some of these options would be completely subsumed by the
+ability to aggregate in the interface: for example, breaking down the
+live heap by sourced module can be entirely derived from cost-center
+profiling.
+
+attachment:aggregate.png
+
+Furthermore, the options for filtering out elements of the heap could be
+performed entirely after profiles are collected.
+
+attachment:filter.png
+
+http://www.haskell.org/ghc/docs/latest/html/users_guide/prof-heap.html
+
+{-
+3. Combining multiple profiles.  Heap profiles are rarely taken once,
+most of the time, heap profiles are taken multiple times, possibly
+with different settings or with modifications to the code.
+
+attachment:multirun.png
+
+When the code run stays constant, it should be possible to superimpose
+two different runs and consider them together; alternatively, if 
+
+One thing that would be necessary
+stretching/compressing time scales over multiple runs so that they line
+up.  I'm not really sure how to implement this, or if it would be better
+done completely automatically, but it would certainly make making
+comparisons easier.
+-}
+
+Due to the compressed time-frame, these are the only features I would
+like to tackle for this particular project.  However, there are a number
+of further extensions would be quite amenable to this project; for example,
+realtime updates would be a nice addition.
+
+== Changes to Storyboard ==
+
+Describe the changes you made between your storyboard and final version here.
+
+== Division of Labor & Commentary ==
+
+Describe how work was divided among team members.
+
+Provide a commentary on the development process, including answers to the following questions: Roughly how much time did you spend developing your application? What aspects took the most time?
