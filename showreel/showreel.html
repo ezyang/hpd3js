@@ -25,13 +25,15 @@ svg {
 
 var margin = {top: 120, right: 60, bottom: 60, left: 60},
     width = 800 - margin.right - margin.left,
-    height = 1200 - margin.top - margin.bottom;
+    height = 600 - margin.top - margin.bottom;
+
+var bands = 8;
 
 var x = d3.time.scale()
     .range([0, width - 60]);
 
 var y = d3.scale.linear()
-    .range([height / 4 - 20, 0]);
+    .range([height / bands - 20, 0]);
 
 var duration = 1500,
     delay = 500;
@@ -65,7 +67,7 @@ var axis = d3.svg.line()
 var area = d3.svg.area()
     .interpolate(interpol)
     .x(function(d) { return x(d.date); })
-    .y0(height / 4 - 20)
+    .y0(height / bands - 20)
     .y1(function(d) { return y(d.price); });
 
 d3.csv("/d3/examples/data/stocks.csv", function(data) {
@@ -151,7 +153,7 @@ d3.csv("/d3/examples/data/stocks.csv", function(data) {
 function lines() {
 
   var g = svg.selectAll(".symbol")
-      .attr("transform", function(d, i) { return "translate(0," + i * height / 8 + ")"; });
+      .attr("transform", function(d, i) { return "translate(0," + i * height / bands + ")"; });
 
   g.each(function(d) {
     var e = d3.select(this);
@@ -202,7 +204,7 @@ function horizons() {
       .attr("id", "clip")
     .append("rect")
       .attr("width", width)
-      .attr("height", height / 4 - 20);
+      .attr("height", height / bands - 20);
 
   var color = d3.scale.ordinal()
       .range(["#c6dbef", "#9ecae1", "#6baed6"]);
@@ -212,12 +214,12 @@ function horizons() {
 
   g.select("circle").transition()
       .duration(duration)
-      .attr("transform", function(d) { return "translate(" + (width - 60) + "," + (-height / 4) + ")"; })
+      .attr("transform", function(d) { return "translate(" + (width - 60) + "," + (-height / bands) + ")"; })
       .remove();
 
   g.select("text").transition()
       .duration(duration)
-      .attr("transform", function(d) { return "translate(" + (width - 60) + "," + (height / 4 - 20) + ")"; })
+      .attr("transform", function(d) { return "translate(" + (width - 60) + "," + (height / bands - 20) + ")"; })
       .attr("dy", "0em");
 
   g.each(function(d) {
@@ -227,7 +229,7 @@ function horizons() {
         .data(d3.range(3))
       .enter().insert("path", ".line")
         .attr("class", "area")
-        .attr("transform", function(d) { return "translate(0," + (d * (height / 4 - 20)) + ")"; })
+        .attr("transform", function(d) { return "translate(0," + (d * (height / bands - 20)) + ")"; })
         .attr("d", area(d.values))
         .style("fill", function(d, i) { return color(i); })
         .style("fill-opacity", 1e-6);
@@ -253,7 +255,7 @@ function areas() {
   var g = svg.selectAll(".symbol");
 
   axis
-      .y(height / 4 - 21);
+      .y(height / bands - 21);
 
   g.select(".line")
       .attr("d", function(d) { return axis(d.values); });
