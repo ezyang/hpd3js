@@ -46,8 +46,10 @@ main =
 -- XXX think about how to realtime it
 -- XXX might want this to be transposed...
 toFlot :: Profile -> String
-toFlot profile = "function getData() { return " ++ js ++ "; }"
+toFlot profile = "function getData() { return " ++ js ++ "; } function getSamples() { return " ++ sampling ++ "; }"
   where
+  sampling = list (map (($ "") . showFFloat (Just 2) . end) (samples profile))
+
   js = list (map toJS1 flotSeries)
   toJS1 (l,ds) = "{ label: " ++ show l ++ ", data:\n" ++
                                             list (map point ds) ++ "}"
@@ -68,10 +70,7 @@ toFlot profile = "function getData() { return " ++ js ++ "; }"
                           $ samples profile
                   -- XXX this is not right, incorrectly interpolates
                   -- over missing data
-                  return (l, Map.toList
-                           $ Map.insertWith (\_ x -> x) 0 0
-                           $ Map.insertWith (\_ x -> x) endOfTime 0
-                           $ m)
+                  return (l, Map.toList m)
 
 
   addSample :: Sample -> Map.Map String (Map.Map Double Word) ->
