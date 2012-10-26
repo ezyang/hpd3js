@@ -61,31 +61,31 @@ var y = d3.scale.linear()
 // A line generator, for the dark stroke.
 var line = d3.svg.line()
     .interpolate(interpol)
-    .x(function(d) { return x(d.date); })
+    .x(function(d) { return x(d.time); })
     .y(function(d) { return y(d.usage); });
 
 // A line generator, for the dark stroke.
 var axis = d3.svg.line()
     .interpolate(interpol)
-    .x(function(d) { return x(d.date); })
+    .x(function(d) { return x(d.time); })
     .y(height);
 
 // A area generator, for the dark stroke.
 var area = d3.svg.area()
     .interpolate(interpol)
-    .x(function(d) { return x(d.date); })
+    .x(function(d) { return x(d.time); })
     .y0(height / bands - 20)
     .y1(function(d) { return y(d.usage); });
 
 // [time, heap]
-// {symbol: "", date: "", usage: ""}
+// {symbol: "", time: "", usage: ""}
 
       /*
 [
   { key:"AAPL",
     values:
     [ {symbol:"AAPL"
-    , date:(new Date(946713600000))
+    , time:(new time(946713600000))
     , usage:25.94
     }, ... */
 
@@ -96,14 +96,14 @@ mydata.forEach(function(s) {
   i = 0;
   s.data.forEach(function (x) {
     while (x[0] != mysamples[i]) {
-      s.values.push({symbol: s.key, date: mysamples[i], usage: 0.0});
+      s.values.push({symbol: s.key, time: mysamples[i], usage: 0.0});
       i++;
     }
-    s.values.push({symbol: s.key, date: x[0], usage: x[1]});
+    s.values.push({symbol: s.key, time: x[0], usage: x[1]});
     i++;
   });
   while (i < mysamples.length) {
-    s.values.push({symbol: s.key, date: mysamples[i], usage: 0.0});
+    s.values.push({symbol: s.key, time: mysamples[i], usage: 0.0});
     i++;
   }
   delete s.label;
@@ -114,10 +114,10 @@ mydata.forEach(function(s) {
 
 symbols = mydata;
 
-// Compute the minimum and maximum date across symbols.
+// Compute the minimum and maximum time across symbols.
 x.domain([
-  d3.min(symbols, function(d) { return d.values[0].date; }),
-  d3.max(symbols, function(d) { return d.values[d.values.length - 1].date; })
+  d3.min(symbols, function(d) { return d.values[0].time; }),
+  d3.max(symbols, function(d) { return d.values[d.values.length - 1].time; })
 ]);
 
 var g = svg.selectAll("g")
@@ -160,7 +160,7 @@ function lines() {
 
       e.selectAll("circle, text")
           .data(function(d) { return [d.values[k], d.values[k]]; })
-          .attr("transform", function(d) { return "translate(" + x(d.date) + "," + y(d.usage) + ")"; });
+          .attr("transform", function(d) { return "translate(" + x(d.time) + "," + y(d.usage) + ")"; });
     });
   }
 
@@ -275,7 +275,7 @@ function areas() {
 function stackedArea() {
   var stack = d3.layout.stack()
       .values(function(d) { return d.values; })
-      .x(function(d) { return d.date; })
+      .x(function(d) { return d.time; })
       .y(function(d) { return d.usage; })
       .out(function(d, y0, y) { d.usage0 = y0; })
       .order("reverse");
@@ -314,7 +314,7 @@ function stackedArea() {
 function streamgraph() {
   var stack = d3.layout.stack()
       .values(function(d) { return d.values; })
-      .x(function(d) { return d.date; })
+      .x(function(d) { return d.time; })
       .y(function(d) { return d.usage; })
       .out(function(d, y0, y) { d.usage0 = y0; })
       .order("reverse")
@@ -392,7 +392,7 @@ function overlappingArea() {
 
 function groupedBar() {
   x = d3.scale.ordinal()
-      .domain(symbols[0].values.map(function(d) { return d.date; }))
+      .domain(symbols[0].values.map(function(d) { return d.time; }))
       .rangeBands([0, width - 60], .1);
 
   var x1 = d3.scale.ordinal()
@@ -416,7 +416,7 @@ function groupedBar() {
     d3.select(this).selectAll("rect")
         .data(function(d) { return d.values; })
       .enter().append("rect")
-        .attr("x", function(d) { return x(d.date) + x1(p.key); })
+        .attr("x", function(d) { return x(d.time) + x1(p.key); })
         .attr("y", function(d) { return y(d.usage); })
         .attr("width", x1.rangeBand())
         .attr("height", function(d) { return height - y(d.usage); })
@@ -435,7 +435,7 @@ function stackedBar() {
 
   var stack = d3.layout.stack()
       .values(function(d) { return d.values; })
-      .x(function(d) { return d.date; })
+      .x(function(d) { return d.time; })
       .y(function(d) { return d.usage; })
       .out(function(d, y0, y) { d.usage0 = y0; })
       .order("reverse");
@@ -465,7 +465,7 @@ function stackedBar() {
             .style("stroke-opacity", 1e-6)
           .transition()
             .duration(duration / 2)
-            .attr("x", function(d) { return x(d.date); })
+            .attr("x", function(d) { return x(d.time); })
             .attr("width", x.rangeBand())
             .style("stroke-opacity", 1);
       });
