@@ -77,18 +77,6 @@ var area = d3.svg.area()
     .y0(height / bands - 20)
     .y1(function(d) { return y(d.usage); });
 
-// [time, heap]
-// {symbol: "", time: "", usage: ""}
-
-      /*
-[
-  { key:"AAPL",
-    values:
-    [ {symbol:"AAPL"
-    , time:(new time(946713600000))
-    , usage:25.94
-    }, ... */
-
 mydata.forEach(function(s) {
   s.key = s.label;
   s.values = [];
@@ -119,104 +107,33 @@ x.domain([
   d3.min(symbols, function(d) { return d.values[0].time; }),
   d3.max(symbols, function(d) { return d.values[d.values.length - 1].time; })
 ]);
+symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 
 var g = svg.selectAll("g")
     .data(symbols)
   .enter().append("g")
     .attr("class", "symbol");
 
-setTimeout(lines, duration);
-
-function lines() {
-
-  var g = svg.selectAll(".symbol")
-      .attr("transform", function(d, i) { return "translate(0," + i * height / bands + ")"; });
-
-  g.each(function(d) {
-    var e = d3.select(this);
-
-    e.append("path")
-        .attr("class", "line");
-
-    e.append("circle")
-        .attr("r", 5)
-        .style("fill", function(d) { return color(d.key); })
-        .style("stroke", "#000")
-        .style("stroke-width", "2px");
-
-    e.append("text")
-        .attr("x", 12)
-        .attr("dy", ".31em")
-        .text(d.key);
-  });
-
-  function draw(k) {
-    g.each(function(d) {
-      var e = d3.select(this);
-      y.domain([0, d.maxUsage]);
-
-      e.select("path")
-          .attr("d", function(d) { return line(d.values.slice(0, k + 1)); });
-
-      e.selectAll("circle, text")
-          .data(function(d) { return [d.values[k], d.values[k]]; })
-          .attr("transform", function(d) { return "translate(" + x(d.time) + "," + y(d.usage) + ")"; });
-    });
-  }
-
-  var k = 1, n = symbols[0].values.length;
-  d3.timer(function() {
-    draw(k);
-    if ((k += 2) >= n - 1) {
-      draw(n - 1);
-      setTimeout(horizons, 500);
-      return true;
-    }
-  });
-}
+setTimeout(horizons, duration);
 
 function horizons() {
-  svg.insert("defs", ".symbol")
-    .append("clipPath")
-      .attr("id", "clip")
-    .append("rect")
-      .attr("width", width)
-      .attr("height", height / bands - 20);
 
   var color = d3.scale.ordinal()
       .range(["#c6dbef", "#9ecae1", "#6baed6"]);
 
-  var g = svg.selectAll(".symbol")
-      .attr("clip-path", "url(#clip)");
-
-  g.select("circle").transition()
-      .duration(duration)
-      .attr("transform", function(d) { return "translate(" + (width - 60) + "," + (-height / bands) + ")"; })
-      .remove();
-
-  g.select("text").transition()
-      .duration(duration)
-      .attr("transform", function(d) { return "translate(" + (width - 60) + "," + (height / bands - 20) + ")"; })
-      .attr("dy", "0em");
+  var g = svg.selectAll(".symbol");
 
   g.each(function(d) {
     y.domain([0, d.maxUsage]);
 
     d3.select(this).selectAll(".area")
-        .data(d3.range(3))
+        .data(d3.range(1))
       .enter().insert("path", ".line")
         .attr("class", "area")
         .attr("transform", function(d) { return "translate(0," + (d * (height / bands - 20)) + ")"; })
-        .attr("d", area(d.values))
-        .style("fill", function(d, i) { return color(i); })
-        .style("fill-opacity", 1e-6);
+        .attr("d", area(d.values));
 
     y.domain([0, d.maxUsage / 3]);
-
-    d3.select(this).selectAll(".line").transition()
-        .duration(duration)
-        .attr("d", line(d.values))
-        .style("stroke-opacity", 1e-6);
 
     d3.select(this).selectAll(".area").transition()
         .duration(duration)
@@ -225,7 +142,7 @@ function horizons() {
         .each("end", function() { d3.select(this).style("fill-opacity", null); });
   });
 
-  setTimeout(areas, duration + delay);
+  setTimeout(areas, delay);
 }
 
 function areas() {
@@ -246,24 +163,12 @@ function areas() {
         .each("end", function() { d3.select(this).style("stroke-opacity", null); });
 
     d3.select(this).selectAll(".area")
-        .filter(function(d, i) { return i; })
-      .transition()
-        .duration(duration)
-        .style("fill-opacity", 1e-6)
-        .attr("d", area(d.values))
-        .remove();
-
-    d3.select(this).selectAll(".area")
         .filter(function(d, i) { return !i; })
       .transition()
         .duration(duration)
         .style("fill", color(d.key))
         .attr("d", area(d.values));
   });
-
-  svg.select("defs").transition()
-      .duration(duration)
-      .remove();
 
   g.transition()
       .duration(duration)
@@ -305,9 +210,6 @@ function stackedArea() {
       .style("stroke-opacity", function(d, i) { return i < 3 ? 1e-6 : 1; })
       .attr("d", function(d) { return line(d.values); });
 
-  t.select("text")
-      .attr("transform", function(d) { d = d.values[d.values.length - 1]; return "translate(" + (width - 60) + "," + y(d.usage / 2 + d.usage0) + ")"; });
-
   setTimeout(streamgraph, duration + delay);
 }
 
@@ -334,9 +236,6 @@ function streamgraph() {
   t.select("path.line")
       .style("stroke-opacity", 1e-6)
       .attr("d", function(d) { return line(d.values); });
-
-  t.select("text")
-      .attr("transform", function(d) { d = d.values[d.values.length - 1]; return "translate(" + (width - 60) + "," + y(d.usage / 2 + d.usage0) + ")"; });
 
   setTimeout(overlappingArea, duration + delay);
 }
@@ -371,10 +270,6 @@ function overlappingArea() {
   t.select(".area")
       .style("fill-opacity", .5)
       .attr("d", function(d) { return area(d.values); });
-
-  t.select("text")
-      .attr("dy", ".31em")
-      .attr("transform", function(d) { d = d.values[d.values.length - 1]; return "translate(" + (width - 60) + "," + y(d.usage) + ")"; });
 
   svg.append("line")
       .attr("class", "line")
@@ -451,10 +346,6 @@ function stackedBar() {
   var t = g.transition()
       .duration(duration / 2);
 
-  t.select("text")
-      .delay(symbols[0].values.length * 10)
-      .attr("transform", function(d) { d = d.values[d.values.length - 1]; return "translate(" + (width - 60) + "," + y(d.usage / 2 + d.usage0) + ")"; });
-
   t.selectAll("rect")
       .delay(function(d, i) { return i * 10; })
       .attr("y", function(d) { return y(d.usage0 + d.usage); })
@@ -501,12 +392,6 @@ function transposeBar() {
       .attr("width", x.rangeBand())
       .style("stroke-opacity", 1e-6);
 
-  t.select("text")
-      .attr("x", 0)
-      .attr("transform", function(d) { return "translate(" + (x(d.key) + x.rangeBand() / 2) + "," + height + ")"; })
-      .attr("dy", "1.31em")
-      .each("end", function() { d3.select(this).attr("x", null).attr("text-anchor", "middle"); });
-
   svg.select("line").transition()
       .duration(duration)
       .attr("x2", width);
@@ -531,10 +416,6 @@ function donut() {
       .duration(duration)
       .tween("arc", arcTween);
 
-  g.select("text").transition()
-      .duration(duration)
-      .attr("dy", ".31em");
-
   svg.select("line").transition()
       .duration(duration)
       .attr("y1", 2 * height)
@@ -543,7 +424,6 @@ function donut() {
 
   function arcTween(d) {
     var path = d3.select(this),
-        text = d3.select(this.parentNode.appendChild(this.previousSibling)),
         x0 = x(d.data.key),
         y0 = height - y(d.data.sumUsage);
 
@@ -561,89 +441,11 @@ function donut() {
 
       path.attr("transform", "translate(" + xx + "," + yy + ")");
       path.attr("d", arc(f));
-      text.attr("transform", "translate(" + arc.centroid(f) + ")translate(" + xx + "," + yy + ")rotate(" + ((f.startAngle + f.endAngle) / 2 + 3 * Math.PI / 2) * 180 / Math.PI + ")");
     };
   }
 
   setTimeout(donutExplode, duration + delay);
 }
-
-/*
-function donutTransition() {
-  var r0 = height / 2 - x.rangeBand() / 2,
-      r1 = height / 2,
-      pie1 = d3.layout.pie().value(function(d) { return d.sumUsage; })(symbols),
-      pie2 = d3.layout.pie().value(function(d) { return d.maxUsage; })(symbols),
-      arc = d3.svg.arc();
-
-  svg.selectAll(".symbol path")
-      .datum(function(d, i) {
-        d = pie1[i];
-        d.innerRadius = r0;
-        d.outerRadius = r1;
-        d.next = pie2[i];
-        return d;
-      })
-      .each(transitionSplit);
-
-  function transitionSplit(d, i) {
-    d3.select(this).transition()
-        .duration(duration / 2)
-        .tween("arc", tweenArc({
-          innerRadius: i & 1 ? r0 : (r0 + r1) / 2,
-          outerRadius: i & 1 ? (r0 + r1) / 2 : r1
-        }))
-        .each("end", transitionRotate);
-  }
-
-  function transitionRotate(d, i) {
-    var a0 = d.next.startAngle + d.next.endAngle,
-        a1 = d.startAngle - d.endAngle;
-    d3.select(this).transition()
-        .duration(duration / 2)
-        .tween("arc", tweenArc({
-          startAngle: (a0 + a1) / 2,
-          endAngle: (a0 - a1) / 2
-        }))
-        .each("end", transitionResize);
-  }
-
-  function transitionResize(d, i) {
-    d3.select(this).transition()
-        .duration(duration / 2)
-        .tween("arc", tweenArc({
-          startAngle: d.next.startAngle,
-          endAngle: d.next.endAngle
-        }))
-        .each("end", transitionUnite);
-  }
-
-  function transitionUnite(d, i) {
-    d3.select(this).transition()
-        .duration(duration / 2)
-        .tween("arc", tweenArc({
-          innerRadius: r0,
-          outerRadius: r1
-        }));
-  }
-
-  function tweenArc(b) {
-    return function(a) {
-      var path = d3.select(this),
-          text = d3.select(this.nextSibling),
-          i = d3.interpolate(a, b);
-      for (var key in b) a[key] = b[key]; // update data
-      return function(t) {
-        var a = i(t);
-        path.attr("d", arc(a));
-        text.attr("transform", "translate(" + arc.centroid(a) + ")translate(" + width / 2 + "," + height / 2 +")rotate(" + ((a.startAngle + a.endAngle) / 2 + 3 * Math.PI / 2) * 180 / Math.PI + ")");
-      };
-    }
-  }
-
-  setTimeout(donutExplode, 2 * duration + delay);
-}
-*/
 
 function donutExplode() {
   var r0a = height / 2 - x.rangeBand() / 2,
@@ -669,13 +471,11 @@ function donutExplode() {
   function tweenArc(b) {
     return function(a) {
       var path = d3.select(this),
-          text = d3.select(this.nextSibling),
           i = d3.interpolate(a, b);
       for (var key in b) a[key] = b[key]; // update data
       return function(t) {
         var a = i(t);
         path.attr("d", arc(a));
-        text.attr("transform", "translate(" + arc.centroid(a) + ")translate(" + width / 2 + "," + height / 2 +")rotate(" + ((a.startAngle + a.endAngle) / 2 + 3 * Math.PI / 2) * 180 / Math.PI + ")");
       };
     }
   }
