@@ -27,17 +27,9 @@ svg {
   <body>
     <script type="text/javascript">
 
-var margin = {top: 120, right: 60, bottom: 60, left: 60},
+var margin = {top: 60, right: 60, bottom: 60, left: 60},
     width = 800 - margin.right - margin.left,
-    height = 600 - margin.top - margin.bottom;
-
-var bands = 8;
-
-var x = d3.time.scale()
-    .range([0, width - 60]);
-
-var y = d3.scale.linear()
-    .range([height / bands - 20, 0]);
+    height = 1000 - margin.top - margin.bottom;
 
 var duration = 1500,
     delay = 500;
@@ -54,6 +46,17 @@ var stocks,
     symbols;
 
 var interpol = "linear"; // "basis"
+
+var mydata = getData();
+var mysamples = getSamples();
+
+var bands = mydata.length;
+
+var x = d3.time.scale()
+    .range([0, width - 60]);
+
+var y = d3.scale.linear()
+    .range([height / bands - 20, 0]);
 
 // A line generator, for the dark stroke.
 var line = d3.svg.line()
@@ -74,23 +77,8 @@ var area = d3.svg.area()
     .y0(height / bands - 20)
     .y1(function(d) { return y(d.price); });
 
-d3.csv("/d3/examples/data/stocks.csv", function(data) {
-
-  var mydata = getData();
-  var mysamples = getSamples();
-
-  // [time, heap]
-  // {symbol: "", date: "", price: ""}
-
-  var parse = d3.time.format("%b %Y").parse,
-      filter = {AAPL: 1, AMZN: 1, MSFT: 1, IBM: 1}; // NOT NEEDED
-
-  stocks = data.filter(function(d) { return d.symbol in filter; }); // NOT NEEDED
-
-  // Nest stock values by symbol.
-  symbols = d3.nest()
-      .key(function(d) { return d.symbol; })
-      .entries(stocks); // NOT NEEDED
+// [time, heap]
+// {symbol: "", date: "", price: ""}
 
       /*
 [
@@ -101,58 +89,43 @@ d3.csv("/d3/examples/data/stocks.csv", function(data) {
     , price:25.94
     }, ... */
 
-  // XXX convert our data to same format as used below
-  mydata.forEach(function(s) {
-    s.key = s.label;
-    s.values = [];
-    // HACK
-    i = 0;
-    s.data.forEach(function (x) {
-      while (x[0] != mysamples[i]) {
-        s.values.push({symbol: s.key, date: mysamples[i], price: 0.0});
-        i++;
-      }
-      s.values.push({symbol: s.key, date: x[0], price: x[1]});
-      i++;
-    });
-    while (i < mysamples.length) {
+mydata.forEach(function(s) {
+  s.key = s.label;
+  s.values = [];
+  // HACK: fill in missing data
+  i = 0;
+  s.data.forEach(function (x) {
+    while (x[0] != mysamples[i]) {
       s.values.push({symbol: s.key, date: mysamples[i], price: 0.0});
       i++;
     }
-    delete s.label;
-    delete s.data;
-    s.maxPrice = d3.max(s.values, function(d) { return d.price; });
-    s.sumPrice = d3.sum(s.values, function(d) { return d.price; });
+    s.values.push({symbol: s.key, date: x[0], price: x[1]});
+    i++;
   });
-
-  // Parse dates and numbers. We assume values are sorted by date.
-  // Also compute the maximum price per symbol, needed for the y-domain.
-  symbols.forEach(function(s) {
-    s.values.forEach(function(d) { d.date = parse(d.date); d.price = +d.price; });
-    s.maxPrice = d3.max(s.values, function(d) { return d.price; });
-    s.sumPrice = d3.sum(s.values, function(d) { return d.price; });
-  });
-
-  symbols = mydata;
-
-  // Sort by maximum price, descending.
-  symbols.sort(function(a, b) { return b.maxPrice - a.maxPrice; });
-
-  // Compute the minimum and maximum date across symbols.
-  x.domain([
-    d3.min(symbols, function(d) { return d.values[0].date; }),
-    d3.max(symbols, function(d) { return d.values[d.values.length - 1].date; })
-  ]);
-
-  //console.log(symbols);
-
-  var g = svg.selectAll("g")
-      .data(symbols)
-    .enter().append("g")
-      .attr("class", "symbol");
-
-  setTimeout(lines, duration);
+  while (i < mysamples.length) {
+    s.values.push({symbol: s.key, date: mysamples[i], price: 0.0});
+    i++;
+  }
+  delete s.label;
+  delete s.data;
+  s.maxPrice = d3.max(s.values, function(d) { return d.price; });
+  s.sumPrice = d3.sum(s.values, function(d) { return d.price; });
 });
+
+symbols = mydata;
+
+// Compute the minimum and maximum date across symbols.
+x.domain([
+  d3.min(symbols, function(d) { return d.values[0].date; }),
+  d3.max(symbols, function(d) { return d.values[d.values.length - 1].date; })
+]);
+
+var g = svg.selectAll("g")
+    .data(symbols)
+  .enter().append("g")
+    .attr("class", "symbol");
+
+setTimeout(lines, duration);
 
 function lines() {
 
