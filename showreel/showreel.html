@@ -47,10 +47,10 @@ var stocks,
 
 var interpol = "linear"; // "basis"
 
-var mydata = getData();
+var symbols = getData();
 var mysamples = getSamples();
 
-var bands = mydata.length;
+var bands = symbols.length;
 
 var x = d3.time.scale()
     .range([0, width - 60]);
@@ -77,7 +77,7 @@ var area = d3.svg.area()
     .y0(height / bands - 20)
     .y1(function(d) { return y(d.usage); });
 
-mydata.forEach(function(s) {
+symbols.forEach(function(s) {
   s.key = s.label;
   s.values = [];
   // HACK: fill in missing data
@@ -99,51 +99,23 @@ mydata.forEach(function(s) {
   s.maxUsage = d3.max(s.values, function(d) { return d.usage; });
   s.sumUsage = d3.sum(s.values, function(d) { return d.usage; });
 });
+symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 
-symbols = mydata;
+// Prune low contributors
+
 
 // Compute the minimum and maximum time across symbols.
 x.domain([
   d3.min(symbols, function(d) { return d.values[0].time; }),
   d3.max(symbols, function(d) { return d.values[d.values.length - 1].time; })
 ]);
-symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 
 var g = svg.selectAll("g")
     .data(symbols)
   .enter().append("g")
     .attr("class", "symbol");
 
-setTimeout(horizons, duration);
-
-function horizons() {
-
-  var color = d3.scale.ordinal()
-      .range(["#c6dbef", "#9ecae1", "#6baed6"]);
-
-  var g = svg.selectAll(".symbol");
-
-  g.each(function(d) {
-    y.domain([0, d.maxUsage]);
-
-    d3.select(this).selectAll(".area")
-        .data(d3.range(1))
-      .enter().insert("path", ".line")
-        .attr("class", "area")
-        .attr("transform", function(d) { return "translate(0," + (d * (height / bands - 20)) + ")"; })
-        .attr("d", area(d.values));
-
-    y.domain([0, d.maxUsage / 3]);
-
-    d3.select(this).selectAll(".area").transition()
-        .duration(duration)
-        .style("fill-opacity", 1)
-        .attr("d", area(d.values))
-        .each("end", function() { d3.select(this).style("fill-opacity", null); });
-  });
-
-  setTimeout(areas, delay);
-}
+setTimeout(areas, duration);
 
 function areas() {
   var g = svg.selectAll(".symbol");
@@ -157,15 +129,11 @@ function areas() {
   g.each(function(d) {
     y.domain([0, d.maxUsage]);
 
-    d3.select(this).select(".line").transition()
-        .duration(duration)
-        .style("stroke-opacity", 1)
-        .each("end", function() { d3.select(this).style("stroke-opacity", null); });
-
     d3.select(this).selectAll(".area")
-        .filter(function(d, i) { return !i; })
-      .transition()
-        .duration(duration)
+        .data(d3.range(1))
+      .enter().insert("path", ".line")
+        .attr("class", "area")
+        .attr("transform", function(d) { return "translate(0," + (d * (height / bands - 20)) + ")"; })
         .style("fill", color(d.key))
         .attr("d", area(d.values));
   });
@@ -282,203 +250,6 @@ function overlappingArea() {
       .duration(duration)
       .style("stroke-opacity", 1);
 
-  setTimeout(groupedBar, duration + delay);
-}
-
-function groupedBar() {
-  x = d3.scale.ordinal()
-      .domain(symbols[0].values.map(function(d) { return d.time; }))
-      .rangeBands([0, width - 60], .1);
-
-  var x1 = d3.scale.ordinal()
-      .domain(symbols.map(function(d) { return d.key; }))
-      .rangeBands([0, x.rangeBand()]);
-
-  var g = svg.selectAll(".symbol");
-
-  var t = g.transition()
-      .duration(duration);
-
-  t.select(".line")
-      .style("stroke-opacity", 1e-6)
-      .remove();
-
-  t.select(".area")
-      .style("fill-opacity", 1e-6)
-      .remove();
-
-  g.each(function(p, j) {
-    d3.select(this).selectAll("rect")
-        .data(function(d) { return d.values; })
-      .enter().append("rect")
-        .attr("x", function(d) { return x(d.time) + x1(p.key); })
-        .attr("y", function(d) { return y(d.usage); })
-        .attr("width", x1.rangeBand())
-        .attr("height", function(d) { return height - y(d.usage); })
-        .style("fill", color(p.key))
-        .style("fill-opacity", 1e-6)
-      .transition()
-        .duration(duration)
-        .style("fill-opacity", 1);
-  });
-
-  setTimeout(stackedBar, duration + delay);
-}
-
-function stackedBar() {
-  x.rangeRoundBands([0, width - 60], .1);
-
-  var stack = d3.layout.stack()
-      .values(function(d) { return d.values; })
-      .x(function(d) { return d.time; })
-      .y(function(d) { return d.usage; })
-      .out(function(d, y0, y) { d.usage0 = y0; })
-      .order("reverse");
-
-  var g = svg.selectAll(".symbol");
-
-  stack(symbols);
-
-  y
-      .domain([0, d3.max(symbols[0].values.map(function(d) { return d.usage + d.usage0; }))])
-      .range([height, 0]);
-
-  var t = g.transition()
-      .duration(duration / 2);
-
-  t.selectAll("rect")
-      .delay(function(d, i) { return i * 10; })
-      .attr("y", function(d) { return y(d.usage0 + d.usage); })
-      .attr("height", function(d) { return height - y(d.usage); })
-      .each("end", function() {
-        d3.select(this)
-            .style("stroke", "#fff")
-            .style("stroke-opacity", 1e-6)
-          .transition()
-            .duration(duration / 2)
-            .attr("x", function(d) { return x(d.time); })
-            .attr("width", x.rangeBand())
-            .style("stroke-opacity", 1);
-      });
-
-  setTimeout(transposeBar, duration + symbols[0].values.length * 10 + delay);
-}
-
-function transposeBar() {
-  x
-      .domain(symbols.map(function(d) { return d.key; }))
-      .rangeRoundBands([0, width], .2);
-
-  y
-      .domain([0, d3.max(symbols.map(function(d) { return d3.sum(d.values.map(function(d) { return d.usage; })); }))]);
-
-  var stack = d3.layout.stack()
-      .x(function(d, i) { return i; })
-      .y(function(d) { return d.usage; })
-      .out(function(d, y0, y) { d.usage0 = y0; });
-
-  stack(d3.zip.apply(null, symbols.map(function(d) { return d.values; }))); // transpose!
-
-  var g = svg.selectAll(".symbol");
-
-  var t = g.transition()
-      .duration(duration / 2);
-
-  t.selectAll("rect")
-      .delay(function(d, i) { return i * 10; })
-      .attr("y", function(d) { return y(d.usage0 + d.usage) - 1; })
-      .attr("height", function(d) { return height - y(d.usage) + 1; })
-      .attr("x", function(d) { return x(d.symbol); })
-      .attr("width", x.rangeBand())
-      .style("stroke-opacity", 1e-6);
-
-  svg.select("line").transition()
-      .duration(duration)
-      .attr("x2", width);
-
-  setTimeout(donut,  duration / 2 + symbols[0].values.length * 10 + delay);
-}
-
-function donut() {
-  var g = svg.selectAll(".symbol");
-
-  g.selectAll("rect").remove();
-
-  var pie = d3.layout.pie()
-      .value(function(d) { return d.sumUsage; });
-
-  var arc = d3.svg.arc();
-
-  g.append("path")
-      .style("fill", function(d) { return color(d.key); })
-      .data(function() { return pie(symbols); })
-    .transition()
-      .duration(duration)
-      .tween("arc", arcTween);
-
-  svg.select("line").transition()
-      .duration(duration)
-      .attr("y1", 2 * height)
-      .attr("y2", 2 * height)
-      .remove();
-
-  function arcTween(d) {
-    var path = d3.select(this),
-        x0 = x(d.data.key),
-        y0 = height - y(d.data.sumUsage);
-
-    return function(t) {
-      var r = height / 2 / Math.min(1, t + 1e-3),
-          a = Math.cos(t * Math.PI / 2),
-          xx = (-r + (a) * (x0 + x.rangeBand()) + (1 - a) * (width + height) / 2),
-          yy = ((a) * height + (1 - a) * height / 2),
-          f = {
-            innerRadius: r - x.rangeBand() / (2 - a),
-            outerRadius: r,
-            startAngle: a * (Math.PI / 2 - y0 / r) + (1 - a) * d.startAngle,
-            endAngle: a * (Math.PI / 2) + (1 - a) * d.endAngle
-          };
-
-      path.attr("transform", "translate(" + xx + "," + yy + ")");
-      path.attr("d", arc(f));
-    };
-  }
-
-  setTimeout(donutExplode, duration + delay);
-}
-
-function donutExplode() {
-  var r0a = height / 2 - x.rangeBand() / 2,
-      r1a = height / 2,
-      r0b = 2 * height - x.rangeBand() / 2,
-      r1b = 2 * height,
-      arc = d3.svg.arc();
-
-  svg.selectAll(".symbol path")
-      .each(transitionExplode);
-
-  function transitionExplode(d, i) {
-    d.innerRadius = r0a;
-    d.outerRadius = r1a;
-    d3.select(this).transition()
-        .duration(duration / 2)
-        .tween("arc", tweenArc({
-          innerRadius: r0b,
-          outerRadius: r1b
-        }));
-  }
-
-  function tweenArc(b) {
-    return function(a) {
-      var path = d3.select(this),
-          i = d3.interpolate(a, b);
-      for (var key in b) a[key] = b[key]; // update data
-      return function(t) {
-        var a = i(t);
-        path.attr("d", arc(a));
-      };
-    }
-  }
 }
 
     </script>
