@@ -104,7 +104,8 @@ symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 // Separate high and low contributors
 var high = []
 var i = 0;
-while (symbols.length && i < 10) {
+var showbands = 10;
+while (symbols.length && i < showbands) {
     high.push(symbols.shift());
     i++;
 }
@@ -142,6 +143,7 @@ g.each(function(d) {
 });
 
 setTimeout(stackedArea, 0);
+var first = true;
 
 function stackedArea() {
   var stack = d3.layout.stack()
@@ -165,16 +167,24 @@ function stackedArea() {
       .y1(function(d) { return y(d.usage0 + d.usage); });
 
   var t = svg.selectAll(".symbol").transition()
-        .duration(duration);
+        .duration(duration/2);
+
+
+  var easing = function (t) {
+      return 1 - (1-t)*(1-t)*(1-t);
+  }
+  var easeOver = showbands * 150;
 
   t.select("path.area")
+    .delay(function(d, i) { return first ? 0 : easeOver * easing(i/showbands); })
     .style("fill-opacity", 1)
     .attr("d", function(d) { return area(d.values); });
 
-  setTimeout(streamgraph, duration + delay);
+  setTimeout(streamgraph, duration/2 + delay + (first ? 0 : easeOver));
 }
 
 function streamgraph() {
+  first = false; // bum bum XXX
   var stack = d3.layout.stack()
       .values(function(d) { return d.values; })
       .x(function(d) { return d.time; })
@@ -211,7 +221,8 @@ function overlappingArea() {
       .attr("d", function(d) { return line(d.values); });
 
   y
-      // XXX Using this scale
+      // XXX Using this scale keeps it consistent with the stackedArea scale,
+      // which makes it visually easier to see the update.
       .domain([0, d3.max(symbols[0].values.map(function(d) { return d.usage + d.usage0; }))])
       //.domain([0, d3.max(symbols.map(function(d) { return d.maxUsage; }))])
       .range([height, 0]);
