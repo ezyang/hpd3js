@@ -1,0 +1,20 @@
+Default: &defaults
+  database: hpd3js.sqlite3
+  poolsize: 10
+
+Development:
+  <<: *defaults
+
+Testing:
+  database: hpd3js_test.sqlite3
+  <<: *defaults
+
+Staging:
+  database: hpd3js_staging.sqlite3
+  poolsize: 100
+  <<: *defaults
+
+Production:
+  database: hpd3js_production.sqlite3
+  poolsize: 100
+  <<: *defaults
