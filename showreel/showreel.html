@@ -6,7 +6,7 @@ http://bl.ocks.org/1256572
 <html>
   <head>
     <script src="http://d3js.org/d3.v2.js"></script>
-    <script src="../original.js"></script>
+    <script src="../hackage-query.js"></script>
     <style type="text/css">
 
 svg {
@@ -29,7 +29,7 @@ svg {
 
 var margin = {top: 60, right: 60, bottom: 60, left: 60},
     width = 800 - margin.right - margin.left,
-    height = 1000 - margin.top - margin.bottom;
+    height = 600 - margin.top - margin.bottom;
 
 var duration = 1500,
     delay = 500;
@@ -101,8 +101,26 @@ symbols.forEach(function(s) {
 });
 symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 
-// Prune low contributors
-
+// Separate high and low contributors
+var high = []
+var i = 0;
+while (symbols.length && i < 5) {
+    high.push(symbols.shift());
+    i++;
+}
+if (symbols.length) {
+  var othervalues = d3.transpose(symbols.map(function (s) {
+      return s.values.map(function(x) {
+        return x.usage;
+      });
+    })).map(function (x) { return d3.sum(x); });
+  var otherdata = {
+    key: "OTHER",
+    values: d3.zip(mysamples,othervalues).map(function (x) {return {symbol: "OTHER", time: x[0], usage: x[1]}})
+  };
+  high.push();
+}
+symbols = high;
 
 // Compute the minimum and maximum time across symbols.
 x.domain([
@@ -119,12 +137,6 @@ setTimeout(areas, duration);
 
 function areas() {
   var g = svg.selectAll(".symbol");
-
-  axis
-      .y(height / bands - 21);
-
-  g.select(".line")
-      .attr("d", function(d) { return axis(d.values); });
 
   g.each(function(d) {
     y.domain([0, d.maxUsage]);
