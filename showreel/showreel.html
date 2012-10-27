@@ -144,6 +144,12 @@ g.each(function(d) {
 
 setTimeout(stackedArea, 0);
 var first = true;
+GraphEnum = {
+	STACKED:0,
+	STREAM:1,
+	OVERLAY:2
+	}	
+var currGraph = GraphEnum.STACKED;
 
 function stackedArea() {
   var stack = d3.layout.stack()
@@ -176,10 +182,10 @@ function stackedArea() {
   var easeOver = showbands * 150;
 
   t.select("path.area")
-    .delay(function(d, i) { return first ? 0 : easeOver * easing(i/showbands); })
+    .delay(function(d, i) { return (first||currGraph==GraphEnum.STREAM) ? 0 : easeOver * easing(i/showbands); })
     .style("fill-opacity", 1)
     .attr("d", function(d) { return area(d.values); });
-
+  currGraph = GraphEnum.STACKED;
   //setTimeout(streamgraph, duration/2 + delay + (first ? 0 : easeOver));
 }
 
@@ -198,6 +204,10 @@ function streamgraph() {
   line
       .y(function(d) { return y(d.usage0); });
 
+  area
+      .y0(function(d) { return y(d.usage0); })
+      .y1(function(d) { return y(d.usage0 + d.usage); });
+
   var t = svg.selectAll(".symbol").transition()
       .duration(duration);
 
@@ -207,7 +217,10 @@ function streamgraph() {
   t.select("path.line")
       .style("stroke-opacity", 1e-6)
       .attr("d", function(d) { return line(d.values); });
-
+  t.select(".area")
+      .style("fill-opacity", 1)
+      .attr("d", function(d) { return area(d.values); });
+  currGraph = GraphEnum.STREAM;
   //setTimeout(overlappingArea, duration + delay);
 }
 
@@ -252,10 +265,10 @@ function overlappingArea() {
       .attr("y1", height)
       .attr("y2", height)
       .style("stroke-opacity", 1e-6)
-    .transition()
+      .transition()
       .duration(duration)
       .style("stroke-opacity", 1);
-
+  currGraph = GraphEnum.OVERLAY;
   //setTimeout(stackedArea, duration + delay);
 
 }
