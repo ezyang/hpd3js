@@ -180,7 +180,7 @@ function stackedArea() {
     .style("fill-opacity", 1)
     .attr("d", function(d) { return area(d.values); });
 
-  setTimeout(streamgraph, duration/2 + delay + (first ? 0 : easeOver));
+  //setTimeout(streamgraph, duration/2 + delay + (first ? 0 : easeOver));
 }
 
 function streamgraph() {
@@ -208,7 +208,7 @@ function streamgraph() {
       .style("stroke-opacity", 1e-6)
       .attr("d", function(d) { return line(d.values); });
 
-  setTimeout(overlappingArea, duration + delay);
+  //setTimeout(overlappingArea, duration + delay);
 }
 
 function overlappingArea() {
@@ -256,10 +256,13 @@ function overlappingArea() {
       .duration(duration)
       .style("stroke-opacity", 1);
 
-  setTimeout(stackedArea, duration + delay);
+  //setTimeout(stackedArea, duration + delay);
 
 }
 
     </script>
+    <button id="stream" title="Toggle between streamgraph, stackgraph or overlay chart" onclick="streamgraph()">Stream Graph</button></br>
+    <button id="stack" title="Toggle between streamgraph, stackgraph or overlay chart" onclick="stackedArea()">Stacked Graph</button></br>
+    <button id="overlay" title="Toggle between streamgraph, stackgraph or overlay chart" onclick="overlappingArea()">Overlayed area Graph</button></br>
   </body>
 </html>
