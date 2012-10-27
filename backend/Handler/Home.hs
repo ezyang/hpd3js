@@ -20,6 +20,11 @@ getHomeR = do
         setTitle "Welcome To Yesod!"
         $(widgetFile "homepage")
 
+getViewR :: Text -> Handler RepHtml
+getViewR name = do
+    defaultLayout $ do
+        [whamlet|<h1>#{name}|]
+
 postHomeR :: Handler RepHtml
 postHomeR = do
     ((result, formWidget), formEnctype) <- runFormPost sampleForm
