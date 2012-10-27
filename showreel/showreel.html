@@ -104,7 +104,7 @@ symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 // Separate high and low contributors
 var high = []
 var i = 0;
-while (symbols.length && i < 5) {
+while (symbols.length && i < 10) {
     high.push(symbols.shift());
     i++;
 }
@@ -133,29 +133,15 @@ var g = svg.selectAll("g")
   .enter().append("g")
     .attr("class", "symbol");
 
-setTimeout(areas, duration);
+g.each(function(d) {
+  d3.select(this).selectAll(".area")
+      .data(d3.range(1))
+    .enter().insert("path", ".line")
+      .attr("class", "area")
+      .style("fill", color(d.key));
+});
 
-function areas() {
-  var g = svg.selectAll(".symbol");
-
-  g.each(function(d) {
-    y.domain([0, d.maxUsage]);
-
-    d3.select(this).selectAll(".area")
-        .data(d3.range(1))
-      .enter().insert("path", ".line")
-        .attr("class", "area")
-        .attr("transform", function(d) { return "translate(0," + (d * (height / bands - 20)) + ")"; })
-        .style("fill", color(d.key))
-        .attr("d", area(d.values));
-  });
-
-  g.transition()
-      .duration(duration)
-      .each("end", function() { d3.select(this).attr("clip-path", null); });
-
-  setTimeout(stackedArea, duration + delay);
-}
+setTimeout(stackedArea, 0);
 
 function stackedArea() {
   var stack = d3.layout.stack()
@@ -179,16 +165,11 @@ function stackedArea() {
       .y1(function(d) { return y(d.usage0 + d.usage); });
 
   var t = svg.selectAll(".symbol").transition()
-      .duration(duration)
-      .attr("transform", "translate(0,0)")
-      .each("end", function() { d3.select(this).attr("transform", null); });
+        .duration(duration);
 
   t.select("path.area")
-      .attr("d", function(d) { return area(d.values); });
-
-  t.select("path.line")
-      .style("stroke-opacity", function(d, i) { return i < 3 ? 1e-6 : 1; })
-      .attr("d", function(d) { return line(d.values); });
+    .style("fill-opacity", 1)
+    .attr("d", function(d) { return area(d.values); });
 
   setTimeout(streamgraph, duration + delay);
 }
@@ -230,7 +211,9 @@ function overlappingArea() {
       .attr("d", function(d) { return line(d.values); });
 
   y
-      .domain([0, d3.max(symbols.map(function(d) { return d.maxUsage; }))])
+      // XXX Using this scale
+      .domain([0, d3.max(symbols[0].values.map(function(d) { return d.usage + d.usage0; }))])
+      //.domain([0, d3.max(symbols.map(function(d) { return d.maxUsage; }))])
       .range([height, 0]);
 
   area
@@ -261,6 +244,8 @@ function overlappingArea() {
     .transition()
       .duration(duration)
       .style("stroke-opacity", 1);
+
+  setTimeout(stackedArea, duration + delay);
 
 }
 
