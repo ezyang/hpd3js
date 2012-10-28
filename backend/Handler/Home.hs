@@ -96,9 +96,16 @@ postUploadR = do
                             Nothing -> insert (Profile title hash currentTime)
                             Just (Entity pid _) -> return pid
                     redirect (ViewR uploadId)
-        _ -> defaultLayout $ do
-            setTitle "Unable to upload file"
-            [whamlet|<h1>Unable to upload file|]
+        FormFailure es -> defaultLayout $ do
+            setTitle "Failure"
+            [whamlet|<h1>Failure
+                     <ul>
+                       $forall e <- es
+                         <li>#{e}
+            |]
+        FormMissing -> defaultLayout $ do
+            setTitle "Missing data"
+            [whamlet|<h1>Missing data|]
 
 sampleForm :: Form (FileInfo, Text)
 sampleForm = renderDivs $ (,)
