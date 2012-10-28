@@ -2,12 +2,13 @@
 
 <div>
   <div ##{aDomId}>If you had javascript enabled then you wouldn't be seeing this.
+  <div>
+    <p>Recently uploaded profiles:</p>
+    <ul>
+      $forall Entity pid profile <- profiles
+        <li>
+          <a href=@{ViewR pid}>#{profileTitle profile}
   <div #form>
-    <!--
-    $maybe info <- submission
-      <div .message>
-        Your file's type was <em>#{fileContentType info}</em>.
-    -->
     <form method=post action=@{UploadR}#form enctype=#{formEnctype}>
       ^{formWidget}
       <input type="submit" value="Upload">

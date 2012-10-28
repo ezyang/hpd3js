@@ -82,6 +82,8 @@ library
                  , base16-bytestring
                  , cereal
                  , filepath
+                 , time
+                 , old-locale
 
 executable         hpd3js
     if flag(library-only)
