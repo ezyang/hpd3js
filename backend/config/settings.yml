@@ -15,5 +15,5 @@ Staging:
   <<: *defaults
 
 Production:
-  approot: "http://heap.ezyang.scripts.mit.edu"
+  approot: "http://heap.ezyang.com"
   <<: *defaults
