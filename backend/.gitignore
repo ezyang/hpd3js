@@ -2,3 +2,4 @@
 dist
 *.aes
 static/tmp
+uploaded

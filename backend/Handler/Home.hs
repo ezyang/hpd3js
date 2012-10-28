@@ -1,44 +1,57 @@
-{-# LANGUAGE TupleSections, OverloadedStrings #-}
+{-# LANGUAGE TupleSections, OverloadedStrings, ScopedTypeVariables #-}
 module Handler.Home where
 
 import Import
+import Crypto.Conduit
+import Crypto.Hash.SHA1 (SHA1)
+import Data.Conduit
+import Data.Serialize
+import Control.Exception (evaluate)
+import qualified Data.Text.Encoding as Text
+import qualified Data.ByteString.Base16 as Base16
+import System.FilePath
+import qualified Data.Text as Text
 
--- This is a handler function for the GET request method on the HomeR
--- resource pattern. All of your resource patterns are defined in
--- config/routes
---
--- The majority of the code you will write in Yesod lives in these handler
--- functions. You can spread them across multiple files if you are so
--- inclined, or create a single monolithic file.
+-- no 'staticFiles' splice, since the contents of 'uploaded' will always
+-- be dynamic
+
+uploadDirectory :: FilePath
+uploadDirectory = "uploaded"
+
 getHomeR :: Handler RepHtml
 getHomeR = do
     (formWidget, formEnctype) <- generateFormPost sampleForm
-    let submission = Nothing :: Maybe (FileInfo, Text)
-        handlerName = "getHomeR" :: Text
+    let handlerName = "getHomeR" :: Text
     defaultLayout $ do
         aDomId <- lift newIdent
-        setTitle "Welcome To Yesod!"
+        setTitle "hp/d3.js"
         $(widgetFile "homepage")
 
-getViewR :: Text -> Handler RepHtml
-getViewR name = do
+getViewR :: ProfileId -> Handler RepHtml
+getViewR pid = do
+    profile <- runDB $ get404 pid
     defaultLayout $ do
-        [whamlet|<h1>#{name}|]
+        setTitle . toHtml $ profileTitle profile
+        [whamlet|<h1>#{profileTitle profile}
+                 <p>Hash is #{profileHash profile}|]
 
-postHomeR :: Handler RepHtml
-postHomeR = do
-    ((result, formWidget), formEnctype) <- runFormPost sampleForm
-    let handlerName = "postHomeR" :: Text
-        submission = case result of
-            FormSuccess res -> Just res
-            _ -> Nothing
-
-    defaultLayout $ do
-        aDomId <- lift newIdent
-        setTitle "Welcome To Yesod!"
-        $(widgetFile "homepage")
+postUploadR :: Handler RepHtml
+postUploadR = do
+    ((result, _), _) <- runFormPost sampleForm
+    case result of
+        FormSuccess (file, title) -> do
+            -- XXX Need to check if the file is legit to avoid spamming
+            bhash :: SHA1 <- liftIO . runResourceT $ fileSource file $$ sinkHash
+            let hash = Text.decodeUtf8 (Base16.encode (encode bhash))
+            _ <- liftIO $ evaluate hash
+            liftIO $ fileMove file (uploadDirectory </> Text.unpack hash)
+            uploadId <- runDB . insert $ Profile title hash
+            redirect (ViewR uploadId)
+        _ -> defaultLayout $ do
+            setTitle "Unable to upload file"
+            [whamlet|<h1>Unable to upload file|]
 
 sampleForm :: Form (FileInfo, Text)
 sampleForm = renderDivs $ (,)
-    <$> fileAFormReq "Choose a file"
-    <*> areq textField "What's on the file?" Nothing
+    <$> fileAFormReq "Upload a heap profile:"
+    <*> areq textField "Description:" Nothing

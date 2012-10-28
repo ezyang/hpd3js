@@ -1,8 +1,10 @@
 /static StaticR Static getStatic
+/uploaded UploadedR Static getStatic
 /auth   AuthR   Auth   getAuth
 
 /favicon.ico FaviconR GET
 /robots.txt RobotsR GET
 
-/ HomeR GET POST
-/view/#Text ViewR GET
+/ HomeR GET
+/upload UploadR POST
+/view/#ProfileId ViewR GET
