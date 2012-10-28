@@ -20,6 +20,7 @@ import System.IO.Unsafe
 import qualified Data.IntMap as IntMap
 import Data.IntMap (IntMap)
 import Data.List (foldl')
+import Yesod.Static
 
 dateTimeFormat :: String
 dateTimeFormat = "%e %b %Y %H:%M:%S"
@@ -43,15 +44,16 @@ getHomeR = do
 getViewR :: ProfileId -> Handler RepHtmlJson
 getViewR pid = do
     profile <- runDB $ get404 pid
-    -- XXX ick ick
-    let path = "static" </> uploadDirectory </> Text.unpack (profileHash profile)
-        dlpath = "/" ++ path
+    -- XXX Text versus string, what a PAIN IN THE ASS
+    let components = ["static", uploadDirectory, Text.unpack (profileHash profile)]
+        path = foldr1 (</>) components
+        lpath = StaticR (StaticRoute (map Text.pack components) [])
     let html = do
             setTitle . toHtml $ profileTitle profile
             [whamlet|<h1>#{profileTitle profile}
                      <p>
                         Hash is #{profileHash profile} uploaded on #{format (profileTime profile)}.
-                        <a href=#{dlpath}>Download.
+                        <a href=@{lpath}>Download.
                         |]
         -- Since paths are by hash, this is always the same value
         -- assuming the parse process is deterministic.  This won't work
