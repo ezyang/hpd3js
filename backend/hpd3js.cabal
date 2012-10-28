@@ -84,6 +84,9 @@ library
                  , filepath
                  , time
                  , old-locale
+                 , hp2any-core
+                 , aeson
+                 , containers
 
 executable         hpd3js
     if flag(library-only)

@@ -1,7 +1,6 @@
 <h1>hp/d3.js
 
 <div>
-  <div ##{aDomId}>If you had javascript enabled then you wouldn't be seeing this.
   <div>
     <p>Recently uploaded profiles:</p>
     <ul>
