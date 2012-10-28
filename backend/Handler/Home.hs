@@ -45,8 +45,8 @@ getViewR :: ProfileId -> Handler RepHtmlJson
 getViewR pid = do
     profile <- runDB $ get404 pid
     -- XXX Text versus string, what a PAIN IN THE ASS
-    let components = ["static", uploadDirectory, Text.unpack (profileHash profile)]
-        path = foldr1 (</>) components
+    let components = [uploadDirectory, Text.unpack (profileHash profile)]
+        path = "static" </> foldr1 (</>) components
         lpath = StaticR (StaticRoute (map Text.pack components) [])
     let html = do
             setTitle . toHtml $ profileTitle profile
