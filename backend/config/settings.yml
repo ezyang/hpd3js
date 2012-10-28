@@ -15,5 +15,5 @@ Staging:
   <<: *defaults
 
 Production:
-  #approot: "http://www.example.com"
+  approot: "http://heap.ezyang.scripts.mit.edu"
   <<: *defaults
