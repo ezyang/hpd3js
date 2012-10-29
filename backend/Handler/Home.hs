@@ -68,7 +68,7 @@ getViewR pid = do
         addSample :: IntMap [(Prof.Time, Prof.Cost)] -> (Prof.Time, Prof.ProfileSample) -> IntMap [(Prof.Time, Prof.Cost)]
         addSample xs (time, sample) = foldl' (addSampleData time) xs sample
         json = object [ "data" .= array (map buildSeries (IntMap.toList (foldl' addSample IntMap.empty (Prof.prSamples pdata))))
-                      , "samples" .= array (map snd (reverse (Prof.prSamples pdata)))]
+                      , "samples" .= array (map fst (Prof.prSamples pdata))]
     -- Watch out, no sensitive data allowed!
     setHeader "Access-Control-Allow-Origin" "*"
     defaultLayoutJson html json
