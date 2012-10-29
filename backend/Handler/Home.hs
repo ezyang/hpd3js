@@ -26,7 +26,7 @@ import Data.Time.Git
 -- XXX Gotta do history
 
 dateTimeFormat :: String
-dateTimeFormat = "%B %e, %Y %H:%M:%S"
+dateTimeFormat = "%Y-%m-%d %H:%M:%S UTC"
 
 uploadDirectory :: FilePath
 uploadDirectory = "uploaded"
