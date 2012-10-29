@@ -62,7 +62,7 @@ getViewR hash = do
                        <code>#{profileJob profile}</code>
                      <div>
                        #{format (profileRunTime profile)} (uploaded #{format (profileTime profile)}); <a href=@{lpath}>download .hp</a>
-                     <iframe width="100%" height="650px" src=#{showreel} />
+                     <iframe width="100%" height="550px" frameborder="0" src=#{showreel} />
                         |]
         -- Since paths are by hash, this is always the same value
         -- assuming the parse process is deterministic.  This won't work
