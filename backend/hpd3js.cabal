@@ -88,6 +88,7 @@ library
                  , hp2any-core
                  , aeson
                  , containers
+                 , git-date
 
 executable         hpd3js
     if flag(library-only)

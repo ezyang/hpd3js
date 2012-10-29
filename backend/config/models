@@ -9,6 +9,19 @@ Email
     UniqueEmail email
 Profile
     title Text
-    hash Text
+    hash Hash
+    job Text
     UniqueHash hash
     time UTCTime
+    runTime UTCTime
+ProfileAnnotation
+    profileId ProfileId Eq
+    costCenter Int
+    time Double
+    UniqueProfileAnnotation profileId costCenter time
+    text Text
+ProfileDescription
+    profileId ProfileId Eq
+    version Int
+    UniqueProfileVersion profileId version
+    text Text
