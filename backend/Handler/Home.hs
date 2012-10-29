@@ -36,11 +36,10 @@ format = formatTime defaultTimeLocale dateTimeFormat
 
 getHomeR :: Handler RepHtml
 getHomeR = do
-    (formWidget, formEnctype) <- generateFormPost sampleForm
-    profiles <- runDB $ selectList [] [Desc ProfileTime, LimitTo 10]
+    (formWidget, formEnctype) <- generateFormPost uploadForm
+    profiles <- runDB $ selectList [] [Desc ProfileUploadTime, LimitTo 10]
     let handlerName = "getHomeR" :: Text
     defaultLayout $ do
-        aDomId <- lift newIdent
         setTitle "hp/d3.js"
         $(widgetFile "homepage")
 
@@ -61,7 +60,9 @@ getViewR hash = do
                      <div>
                        <code>#{profileJob profile}</code>
                      <div>
-                       #{format (profileRunTime profile)} (uploaded #{format (profileTime profile)}); <a href=@{lpath}>download .hp</a>
+                       #{format (profileRunTime profile)} (uploaded #{format (profileUploadTime profile)}); <a href=@{lpath}>download .hp</a>
+                     <div>
+                       #{profileDescription profile} (<a href=@{EditR hash}>Edit</a>)
                      <iframe width="100%" height="550px" frameborder="0" src=#{showreel} />
                         |]
         -- Since paths are by hash, this is always the same value
@@ -86,45 +87,74 @@ getViewR hash = do
     setHeader "Access-Control-Allow-Origin" "*"
     defaultLayoutJson html json
 
+editForm :: Profile -> Form (Text, Textarea)
+editForm profile = renderDivs $ (,)
+    <$> areq textField "Title:" (Just (profileTitle profile))
+    <*> areq textareaField "Description:" (Just (profileDescription profile))
+
+getEditR :: Hash -> Handler RepHtml
+getEditR hash = do
+    Entity _ profile <- runDB $ getBy404 (UniqueHash hash)
+    (formWidget, formEnctype) <- generateFormPost (editForm profile)
+    let handlerName = "getEditR" :: Text
+    defaultLayout $ do
+        setTitle "Edit"
+        [whamlet|
+            <div #form>
+              <form method=post action=@{EditR hash}#form enctype=#{formEnctype}>
+                ^{formWidget}
+                <input type="submit" value="Submit">
+            |]
+
+handleForm result f = case result of
+    FormSuccess r -> f r
+    FormFailure es -> defaultLayout $ do
+        setTitle "Failure"
+        [whamlet|<h1>Failure
+                 <ul>
+                   $forall e <- es
+                     <li>#{e}
+        |]
+    FormMissing -> defaultLayout $ do
+        setTitle "Missing data"
+        [whamlet|<h1>Missing data|]
+
+postEditR :: Hash -> Handler RepHtml
+postEditR hash = do
+    Entity id profile <- runDB $ getBy404 (UniqueHash hash)
+    ((result, _), _) <- runFormPost (editForm profile)
+    handleForm result $ \(title, description) -> do
+    runDB $ update id [ProfileTitle =. title, ProfileDescription =. description]
+    redirect (ViewR hash)
+
 postUploadR :: Handler RepHtml
 postUploadR = do
-    ((result, _), _) <- runFormPost sampleForm
-    case result of
-        FormSuccess (file, title) -> do
-            bhash :: SHA1 <- liftIO . runResourceT $ fileSource file $$ sinkHash
-            let hash = Text.decodeUtf8 . Base16.encode $ encode bhash
-            _ <- liftIO $ evaluate hash
-            currentTime <- liftIO getCurrentTime
-            let path = "static" </> uploadDirectory </> Text.unpack hash
-            liftIO $ fileMove file path
-            parse <- liftIO $ readProfile path
-            case parse of
-                Nothing -> do
-                    liftIO $ removeFile path
-                    defaultLayout $ do
-                        setTitle "Not a valid heap profile"
-                        [whamlet|<h1>Not a valid heap profile|]
-                Just profile -> do
-                    let job = Text.pack (Prof.prJob profile)
-                        runTime = maybe currentTime posixToUTC (approxidate (Prof.prDate profile))
-                    _ <- runDB $ do
-                        existing <- getBy (UniqueHash (Hash hash))
-                        case existing of
-                            Nothing -> insert (Profile title (Hash hash) job currentTime runTime)
-                            Just (Entity pid _) -> return pid
-                    redirect (ViewR (Hash hash))
-        FormFailure es -> defaultLayout $ do
-            setTitle "Failure"
-            [whamlet|<h1>Failure
-                     <ul>
-                       $forall e <- es
-                         <li>#{e}
-            |]
-        FormMissing -> defaultLayout $ do
-            setTitle "Missing data"
-            [whamlet|<h1>Missing data|]
+    ((result, _), _) <- runFormPost uploadForm
+    handleForm result $ \(file, title) -> do
+    bhash :: SHA1 <- liftIO . runResourceT $ fileSource file $$ sinkHash
+    let hash = Text.decodeUtf8 . Base16.encode $ encode bhash
+    _ <- liftIO $ evaluate hash
+    currentTime <- liftIO getCurrentTime
+    let path = "static" </> uploadDirectory </> Text.unpack hash
+    liftIO $ fileMove file path
+    parse <- liftIO $ readProfile path
+    case parse of
+        Nothing -> do
+            liftIO $ removeFile path
+            defaultLayout $ do
+                setTitle "Not a valid heap profile"
+                [whamlet|<h1>Not a valid heap profile|]
+        Just profile -> do
+            let job = Text.pack (Prof.prJob profile)
+                runTime = maybe currentTime posixToUTC (approxidate (Prof.prDate profile))
+            _ <- runDB $ do
+                existing <- getBy (UniqueHash (Hash hash))
+                case existing of
+                    Nothing -> insert (Profile title (Hash hash) job (Textarea "") currentTime runTime)
+                    Just (Entity pid _) -> return pid
+            redirect (ViewR (Hash hash))
 
-sampleForm :: Form (FileInfo, Text)
-sampleForm = renderDivs $ (,)
+uploadForm :: Form (FileInfo, Text)
+uploadForm = renderDivs $ (,)
     <$> fileAFormReq "Upload a heap profile:"
-    <*> areq textField "Description:" Nothing
+    <*> areq textField "Title:" Nothing

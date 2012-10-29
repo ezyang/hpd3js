@@ -11,17 +11,13 @@ Profile
     title Text
     hash Hash
     job Text
+    description Textarea
     UniqueHash hash
-    time UTCTime
+    uploadTime UTCTime
     runTime UTCTime
 ProfileAnnotation
     profileId ProfileId Eq
     costCenter Int
     time Double
     UniqueProfileAnnotation profileId costCenter time
-    text Text
-ProfileDescription
-    profileId ProfileId Eq
-    version Int
-    UniqueProfileVersion profileId version
     text Text
