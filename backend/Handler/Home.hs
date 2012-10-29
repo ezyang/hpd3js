@@ -51,7 +51,7 @@ getViewR hash = do
     let html = do
             let showreel = "http://ezyang.github.com/hpd3js/showreel/showreel.html#" ++ Text.unpack (profileHash profile)
             setTitle . toHtml $ profileTitle profile
-            [whamlet|<h1>#{profileTitle profile}
+            [whamlet|<h1><a href=@{HomeR}>#{profileTitle profile}</a>
                      <p>
                         Hash is #{profileHash profile} uploaded on #{format (profileTime profile)}.
                         <a href=@{lpath}>Download.
