@@ -41,19 +41,22 @@ getHomeR = do
         setTitle "hp/d3.js"
         $(widgetFile "homepage")
 
-getViewR :: ProfileId -> Handler RepHtmlJson
-getViewR pid = do
-    profile <- runDB $ get404 pid
+getViewR :: Text -> Handler RepHtmlJson
+getViewR hash = do
+    Entity _ profile <- runDB $ getBy404 (UniqueHash hash)
     -- XXX Text versus string, what a PAIN IN THE ASS
     let components = [uploadDirectory, Text.unpack (profileHash profile)]
         path = "static" </> foldr1 (</>) components
         lpath = StaticR (StaticRoute (map Text.pack components) [])
     let html = do
+            let showreel = "http://ezyang.github.com/hpd3js/showreel/showreel.html#" ++ Text.unpack (profileHash profile)
             setTitle . toHtml $ profileTitle profile
             [whamlet|<h1>#{profileTitle profile}
                      <p>
                         Hash is #{profileHash profile} uploaded on #{format (profileTime profile)}.
                         <a href=@{lpath}>Download.
+
+                        <iframe width="100%" height="700px" src=#{showreel} />
                         |]
         -- Since paths are by hash, this is always the same value
         -- assuming the parse process is deterministic.  This won't work
@@ -61,7 +64,7 @@ getViewR pid = do
         -- validated the profile so that it would definitely parse
         -- properly.
         Just pdata = unsafePerformIO (readProfile path)
-        buildSeries (cid, samples) = object [ "label" .= (IntMap.!) (Prof.prNames pdata) cid
+        buildSeries (cid, samples) = object [ "key" .= (IntMap.!) (Prof.prNames pdata) cid
                                             , "data" .= array samples
                                             ]
         combine [new] [] = [new]
@@ -101,7 +104,7 @@ postUploadR = do
                         case existing of
                             Nothing -> insert (Profile title hash currentTime)
                             Just (Entity pid _) -> return pid
-                    redirect (ViewR uploadId)
+                    redirect (ViewR hash)
         FormFailure es -> defaultLayout $ do
             setTitle "Failure"
             [whamlet|<h1>Failure

@@ -50,7 +50,7 @@ var x, y, line, axis, area;
 var interpol = "linear"; // "basis"
 var showbands = 10;
 
-var loc = window.location.hash ? window.location.hash.substr(1) : "1"; // "ee0029431bb4cf2941d0444782e7f291000214a6";
+var loc = window.location.hash ? window.location.hash.substr(1) : "ee0029431bb4cf2941d0444782e7f291000214a6";
 d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
   symbols = heap.data;
   mysamples = heap.samples;
@@ -84,8 +84,6 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
 
   symbols.forEach(function(s) {
     s.values = [];
-    s.key = s.label;
-    delete s.label;
     // HACK: fill in missing data
     i = 0;
     s.data.forEach(function (x) {

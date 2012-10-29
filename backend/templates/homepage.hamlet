@@ -4,9 +4,9 @@
   <div>
     <p>Recently uploaded profiles:</p>
     <ul>
-      $forall Entity pid profile <- profiles
+      $forall Entity _ profile <- profiles
         <li>
-          <a href=@{ViewR pid}>#{profileTitle profile}
+          <a href=@{ViewR (profileHash profile)}>#{profileTitle profile}
   <div #form>
     <form method=post action=@{UploadR}#form enctype=#{formEnctype}>
       ^{formWidget}

@@ -6,4 +6,4 @@
 
 / HomeR GET
 /upload UploadR POST
-/view/#ProfileId ViewR GET
+/view/#Text ViewR GET
