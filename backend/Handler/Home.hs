@@ -64,7 +64,11 @@ getViewR pid = do
         buildSeries (cid, samples) = object [ "label" .= (IntMap.!) (Prof.prNames pdata) cid
                                             , "data" .= array samples
                                             ]
-        addSampleData time xs (cid, cost) = IntMap.insertWith (++) cid [(time, cost)] xs
+        combine [new] [] = [new]
+        combine [(time', cost')] old@((time, cost):xs) | time' == time = (time, cost + cost'):xs
+                                                       | otherwise     = (time', cost'):old
+        combine _ _ = error "Invariant broken on combine"
+        addSampleData time xs (cid, cost) = IntMap.insertWith combine cid [(time, cost)] xs
         addSample :: IntMap [(Prof.Time, Prof.Cost)] -> (Prof.Time, Prof.ProfileSample) -> IntMap [(Prof.Time, Prof.Cost)]
         addSample xs (time, sample) = foldl' (addSampleData time) xs sample
         json = object [ "data" .= array (map buildSeries (IntMap.toList (foldl' addSample IntMap.empty (Prof.prSamples pdata))))
