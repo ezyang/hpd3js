@@ -56,13 +56,13 @@ getViewR hash = do
             [whamlet|
                      <h1>
                        <a href=@{HomeR}>
-                         #{profileTitle profile}
+                         \#{profileTitle profile}
                      <div>
                        <code>#{profileJob profile}</code>
                      <div>
-                       #{format (profileRunTime profile)} (uploaded #{format (profileUploadTime profile)}); <a href=@{lpath}>download .hp</a>
+                       \#{format (profileRunTime profile)} (uploaded #{format (profileUploadTime profile)}); <a href=@{lpath}>download .hp</a>
                      <div>
-                       #{profileDescription profile} (<a href=@{EditR hash}>Edit</a>)
+                       \#{profileDescription profile} (<a href=@{EditR hash}>Edit</a>)
                      <iframe width="100%" height="550px" frameborder="0" src=#{showreel} />
                         |]
         -- Since paths are by hash, this is always the same value
