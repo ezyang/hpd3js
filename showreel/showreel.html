@@ -6,7 +6,6 @@ http://bl.ocks.org/1256572
 <html>
   <head>
     <script src="http://d3js.org/d3.v2.js"></script>
-    <script src="../hackage-query.js"></script>
     <style type="text/css">
 
 svg {
@@ -42,107 +41,114 @@ var svg = d3.select("body").append("svg")
   .append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-var stocks,
-    symbols;
+var symbols,
+    mysamples,
+    bands;
+
+var x, y, line, axis, area;
 
 var interpol = "linear"; // "basis"
+var showbands = 10;
 
-var symbols = getData();
-var mysamples = getSamples();
+var loc = window.location.hash ? window.location.hash.substr(1) : "1"; // "ee0029431bb4cf2941d0444782e7f291000214a6";
+d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
+  symbols = heap.data;
+  mysamples = heap.samples;
 
-var bands = symbols.length;
+  bands = symbols.length;
 
-var x = d3.time.scale()
-    .range([0, width - 60]);
+  x = d3.time.scale()
+      .range([0, width - 60]);
 
-var y = d3.scale.linear()
-    .range([height / bands - 20, 0]);
+  y = d3.scale.linear()
+      .range([height / bands - 20, 0]);
 
-// A line generator, for the dark stroke.
-var line = d3.svg.line()
-    .interpolate(interpol)
-    .x(function(d) { return x(d.time); })
-    .y(function(d) { return y(d.usage); });
+  // A line generator, for the dark stroke.
+  line = d3.svg.line()
+      .interpolate(interpol)
+      .x(function(d) { return x(d.time); })
+      .y(function(d) { return y(d.usage); });
 
-// A line generator, for the dark stroke.
-var axis = d3.svg.line()
-    .interpolate(interpol)
-    .x(function(d) { return x(d.time); })
-    .y(height);
+  // A line generator, for the dark stroke.
+  axis = d3.svg.line()
+      .interpolate(interpol)
+      .x(function(d) { return x(d.time); })
+      .y(height);
 
-// A area generator, for the dark stroke.
-var area = d3.svg.area()
-    .interpolate(interpol)
-    .x(function(d) { return x(d.time); })
-    .y0(height / bands - 20)
-    .y1(function(d) { return y(d.usage); });
+  // A area generator, for the dark stroke.
+  area = d3.svg.area()
+      .interpolate(interpol)
+      .x(function(d) { return x(d.time); })
+      .y0(height / bands - 20)
+      .y1(function(d) { return y(d.usage); });
 
-symbols.forEach(function(s) {
-  s.key = s.label;
-  s.values = [];
-  // HACK: fill in missing data
-  i = 0;
-  s.data.forEach(function (x) {
-    while (x[0] != mysamples[i]) {
+  symbols.forEach(function(s) {
+    s.values = [];
+    s.key = s.label;
+    delete s.label;
+    // HACK: fill in missing data
+    i = 0;
+    s.data.forEach(function (x) {
+      while (x[0] != mysamples[i]) {
+        s.values.push({symbol: s.key, time: mysamples[i], usage: 0.0});
+        i++;
+      }
+      s.values.push({symbol: s.key, time: x[0], usage: x[1]});
+      i++;
+    });
+    while (i < mysamples.length) {
       s.values.push({symbol: s.key, time: mysamples[i], usage: 0.0});
       i++;
     }
-    s.values.push({symbol: s.key, time: x[0], usage: x[1]});
-    i++;
+    delete s.data;
+    s.maxUsage = d3.max(s.values, function(d) { return d.usage; });
+    s.sumUsage = d3.sum(s.values, function(d) { return d.usage; });
   });
-  while (i < mysamples.length) {
-    s.values.push({symbol: s.key, time: mysamples[i], usage: 0.0});
-    i++;
+  symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
+
+  // Separate high and low contributors
+  var high = []
+  var i = 0;
+  while (symbols.length && i < showbands) {
+      high.push(symbols.shift());
+      i++;
   }
-  delete s.label;
-  delete s.data;
-  s.maxUsage = d3.max(s.values, function(d) { return d.usage; });
-  s.sumUsage = d3.sum(s.values, function(d) { return d.usage; });
+  if (symbols.length) {
+    var othervalues = d3.transpose(symbols.map(function (s) {
+        return s.values.map(function(x) {
+          return x.usage;
+        });
+      })).map(function (x) { return d3.sum(x); });
+    var otherdata = {
+      key: "OTHER",
+      values: d3.zip(mysamples,othervalues).map(function (x) {return {symbol: "OTHER", time: x[0], usage: x[1]}})
+    };
+    high.push();
+  }
+  symbols = high;
+
+  // Compute the minimum and maximum time across symbols.
+  x.domain([
+    d3.min(symbols, function(d) { return d.values[0].time; }),
+    d3.max(symbols, function(d) { return d.values[d.values.length - 1].time; })
+  ]);
+
+  var g = svg.selectAll("g")
+      .data(symbols)
+    .enter().append("g")
+      .attr("class", "symbol");
+
+  g.each(function(d) {
+    d3.select(this).selectAll(".area")
+        .data(d3.range(1))
+      .enter().insert("path", ".line")
+        .attr("class", "area")
+        .style("fill", color(d.key));
+  });
+
+  setTimeout(stackedArea, 0);
+
 });
-symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
-
-// Separate high and low contributors
-var high = []
-var i = 0;
-var showbands = 10;
-while (symbols.length && i < showbands) {
-    high.push(symbols.shift());
-    i++;
-}
-if (symbols.length) {
-  var othervalues = d3.transpose(symbols.map(function (s) {
-      return s.values.map(function(x) {
-        return x.usage;
-      });
-    })).map(function (x) { return d3.sum(x); });
-  var otherdata = {
-    key: "OTHER",
-    values: d3.zip(mysamples,othervalues).map(function (x) {return {symbol: "OTHER", time: x[0], usage: x[1]}})
-  };
-  high.push();
-}
-symbols = high;
-
-// Compute the minimum and maximum time across symbols.
-x.domain([
-  d3.min(symbols, function(d) { return d.values[0].time; }),
-  d3.max(symbols, function(d) { return d.values[d.values.length - 1].time; })
-]);
-
-var g = svg.selectAll("g")
-    .data(symbols)
-  .enter().append("g")
-    .attr("class", "symbol");
-
-g.each(function(d) {
-  d3.select(this).selectAll(".area")
-      .data(d3.range(1))
-    .enter().insert("path", ".line")
-      .attr("class", "area")
-      .style("fill", color(d.key));
-});
-
-setTimeout(stackedArea, 0);
 var first = true;
 GraphEnum = {
 	STACKED:0,
