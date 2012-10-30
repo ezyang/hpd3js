@@ -96,7 +96,6 @@ getEditR :: Hash -> Handler RepHtml
 getEditR hash = do
     Entity _ profile <- runDB $ getBy404 (UniqueHash hash)
     (formWidget, formEnctype) <- generateFormPost (editForm profile)
-    let handlerName = "getEditR" :: Text
     defaultLayout $ do
         setTitle "Edit"
         [whamlet|
@@ -106,6 +105,7 @@ getEditR hash = do
                 <input type="submit" value="Submit">
             |]
 
+handleForm :: Yesod a => FormResult t -> (t -> GHandler sub a RepHtml) -> GHandler sub a RepHtml
 handleForm result f = case result of
     FormSuccess r -> f r
     FormFailure es -> defaultLayout $ do
@@ -121,11 +121,39 @@ handleForm result f = case result of
 
 postEditR :: Hash -> Handler RepHtml
 postEditR hash = do
-    Entity id profile <- runDB $ getBy404 (UniqueHash hash)
+    Entity pid profile <- runDB $ getBy404 (UniqueHash hash)
     ((result, _), _) <- runFormPost (editForm profile)
     handleForm result $ \(title, description) -> do
-    runDB $ update id [ProfileTitle =. title, ProfileDescription =. description]
+    runDB $ update pid [ProfileTitle =. title, ProfileDescription =. description]
     redirect (ViewR hash)
+
+getAnnotateR :: Hash -> Handler RepHtml
+getAnnotateR hash = do
+    Entity _ profile <- runDB $ getBy404 (UniqueHash hash)
+    (formWidget, formEnctype) <- generateFormPost (editForm profile)
+    defaultLayout $ do
+        setTitle "Add annotation to #{profileTitle profile}"
+        [whamlet|
+            <div #form>
+              <form method=post action=@{AnnotateR hash}#form enctype=#{formEnctype}>
+                ^{formWidget}
+                <input type="submit" value="Submit">
+            |]
+
+
+postAnnotateR :: Hash -> Handler RepHtml
+postAnnotateR hash = do
+    Entity pid _ <- runDB $ getBy404 (UniqueHash hash)
+    ((result, _), _) <- runFormPost annotateForm
+    handleForm result $ \(cc, time, text) -> do
+    _ <- runDB . insert $ ProfileAnnotation pid cc time text
+    redirect (ViewR hash)
+
+annotateForm :: Form (Int, Double, Text)
+annotateForm = renderDivs $ (,,)
+    <$> areq intField "Cost center:" Nothing
+    <*> areq doubleField "Time:" Nothing
+    <*> areq textField "Title:" Nothing
 
 postUploadR :: Handler RepHtml
 postUploadR = do

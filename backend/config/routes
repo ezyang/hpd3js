@@ -8,3 +8,4 @@
 /upload UploadR POST
 /edit/#Hash EditR GET POST
 /view/#Hash ViewR GET
+/annotate/#Hash AnnotateR GET POST
