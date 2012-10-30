@@ -129,8 +129,8 @@ postEditR hash = do
 
 getAnnotateR :: Hash -> Handler RepHtml
 getAnnotateR hash = do
-    Entity _ profile <- runDB $ getBy404 (UniqueHash hash)
-    (formWidget, formEnctype) <- generateFormPost (editForm profile)
+    Entity _ _ <- runDB $ getBy404 (UniqueHash hash)
+    (formWidget, formEnctype) <- generateFormPost annotateForm
     defaultLayout $ do
         setTitle "Add annotation to #{profileTitle profile}"
         [whamlet|
