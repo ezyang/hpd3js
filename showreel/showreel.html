@@ -292,12 +292,25 @@ function overlappingArea() {
   currGraph = GraphEnum.OVERLAY;
   //setTimeout(stackedArea, duration + delay);
 
+
 }
 
+function annotate() {
+A = document.annotationForm.annotation.value
+C = (A + B)
+}
 
     </script>
     <button id="stream" title="Toggle between streamgraph, stackgraph or overlay chart" onclick="streamgraph()">Stream Graph</button>
     <button id="stack" title="Toggle between streamgraph, stackgraph or overlay chart" onclick="stackedArea()">Stacked Graph</button>
     <button id="overlay" title="Toggle between streamgraph, stackgraph or overlay chart" onclick="overlappingArea()">Overlayed area Graph</button></br>
+<FORM NAME = annotationForm>
+Annotation to add: <INPUT TYPE = Text NAME = annotation SIZE = 20 value ="">
+<P>
+Total: <INPUT TYPE = Text NAME = txtThirdNumber SIZE = 5 value = "">
+<P>
+<Input Type = Button NAME = b1 VALUE = "Add text" onClick = "annotate()">
+
+</FORM>
   </body>
 </html>
