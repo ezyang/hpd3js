@@ -8,7 +8,6 @@ module Settings where
 import Prelude
 import Text.Shakespeare.Text (st)
 import Language.Haskell.TH.Syntax
-import Database.Persist.Sqlite (SqliteConf)
 import Yesod.Default.Config
 import Yesod.Default.Util
 import Data.Text (Text)
@@ -18,8 +17,19 @@ import Settings.Development
 import Data.Default (def)
 import Text.Hamlet
 
+#if DEVELOPMENT
+import Database.Persist.Sqlite (SqliteConf)
+#else
+import Database.Persist.MySQL (MySQLConf)
+#endif
+
 -- | Which Persistent backend this site is using.
-type PersistConfig = SqliteConf
+type PersistConfig =
+#if DEVELOPMENT
+    SqliteConf
+#else
+    MySQLConf
+#endif
 
 -- Static setting below. Changing these requires a recompile
 
