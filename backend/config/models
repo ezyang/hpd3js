@@ -9,7 +9,7 @@ Email
     UniqueEmail email
 Profile
     title Text
-    hash Hash
+    hash Hash maxlen=40
     job Text
     description Textarea
     UniqueHash hash
