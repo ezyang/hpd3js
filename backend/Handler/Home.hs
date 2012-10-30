@@ -72,6 +72,7 @@ getViewR hash = do
         -- properly.
         Just pdata = unsafePerformIO (readProfile path)
         buildSeries (cid, samples) = object [ "key" .= (IntMap.!) (Prof.prNames pdata) cid
+                                            , "cid" .= cid
                                             , "data" .= array samples
                                             ]
         fx [new] [] = [new]
