@@ -49,7 +49,16 @@ var svg = d3.select("body").append("svg")
 
 var symbols,
     mysamples,
+    namelookup,
     bands;
+
+function cid2name(cid) {
+    if (cid == -1) {
+        return "OTHER";
+    } else {
+        return namelookup[cid];
+    }
+}
 
 var x, y, line, axis, area;
 
@@ -57,9 +66,10 @@ var interpol = "linear"; // "basis"
 var showbands = 10;
 
 var loc = window.location.hash ? window.location.hash.substr(1) : "ee0029431bb4cf2941d0444782e7f291000214a6";
-d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
+d3.json("http://localhost:3000/view/" + loc, function(heap) {
   symbols = heap.data;
   mysamples = heap.samples;
+  namelookup = heap.centers;
 
   bands = symbols.length;
 
@@ -94,14 +104,14 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
     i = 0;
     s.data.forEach(function (x) {
       while (x[0] != mysamples[i]) {
-        s.values.push({symbol: s.key, time: mysamples[i], usage: 0.0});
+        s.values.push({time: mysamples[i], usage: 0.0});
         i++;
       }
-      s.values.push({symbol: s.key, time: x[0], usage: x[1]});
+      s.values.push({time: x[0], usage: x[1]});
       i++;
     });
     while (i < mysamples.length) {
-      s.values.push({symbol: s.key, time: mysamples[i], usage: 0.0});
+      s.values.push({time: mysamples[i], usage: 0.0});
       i++;
     }
     delete s.data;
@@ -124,8 +134,8 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
         });
       })).map(function (x) { return d3.sum(x); });
     var otherdata = {
-      key: "OTHER",
-      values: d3.zip(mysamples,othervalues).map(function (x) {return {symbol: "OTHER", time: x[0], usage: x[1]}})
+      cid: -1,
+      values: d3.zip(mysamples,othervalues).map(function (x) {return {time: x[0], usage: x[1]}})
     };
     high.push();
   }
@@ -147,12 +157,12 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
         .data(d3.range(1))
       .enter().insert("path", ".line")
         .attr("class", "area")
-        .style("fill", color(d.key))
+        .style("fill", color(d.cid))
         .style("opacity", .6)
       .on("mouseover", function(){
       	  	  d3.select(d3.event.target).transition()
          .style("opacity", 1);
-      return tooltip.style("visibility", "visible").text(d.key);})
+      return tooltip.style("visibility", "visible").text(cid2name(d.cid));})
 	  .on("mousemove", function(){
 	  return tooltip.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px");})
 	  .on("mouseout", function(){
