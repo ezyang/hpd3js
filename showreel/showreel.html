@@ -148,10 +148,17 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
       .enter().insert("path", ".line")
         .attr("class", "area")
         .style("fill", color(d.key))
+        .style("opacity", .6)
       .on("mouseover", function(){
+      	  	  d3.select(d3.event.target).transition()
+         .style("opacity", 1);
       return tooltip.style("visibility", "visible").text(d.key);})
-	  .on("mousemove", function(){return tooltip.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px");})
-	  .on("mouseout", function(){return tooltip.style("visibility", "hidden");});
+	  .on("mousemove", function(){
+	  return tooltip.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px");})
+	  .on("mouseout", function(){
+	  d3.select(d3.event.target).transition()
+      .style("opacity", .6);
+	  return tooltip.style("visibility", "hidden");});
   });
 
   setTimeout(stackedArea, 0);
@@ -269,7 +276,7 @@ function overlappingArea() {
       .attr("d", function(d) { return line(d.values); });
 
   t.select(".area")
-      .style("fill-opacity", .5)
+      //.style("fill-opacity", .5)
       .attr("d", function(d) { return area(d.values); });
 
   svg.append("line")
@@ -286,6 +293,7 @@ function overlappingArea() {
   //setTimeout(stackedArea, duration + delay);
 
 }
+
 
     </script>
     <button id="stream" title="Toggle between streamgraph, stackgraph or overlay chart" onclick="streamgraph()">Stream Graph</button>
