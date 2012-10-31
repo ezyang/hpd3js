@@ -28,6 +28,15 @@ svg {
   background: #FFF;
 }
 
+.annot circle {
+  stroke: #000;
+  stroke-width: 2px;
+}
+
+.annot text {
+  font-size: 12px;
+}
+
     </style>
   </head>
   <body>
@@ -37,6 +46,12 @@ svg {
 
 var interpol = "linear"; // "basis" will cause problems with annotation placement
 var showbands = 10; // how many bands to show (the last band will be "OTHER")
+
+// variable naming convention:
+//    s = sequence (e.g. the entire "line" for a cost center)
+//    d = data point (a particular (time, usage) point for a cost center)
+//    a = annotation point
+//    i,j,k = indexes
 
 var tooltip = d3.select("body")
     .append("div")
@@ -50,6 +65,9 @@ var margin = {top: 10, right: 10, bottom: 10, left: 10},
 var duration = 1500,
     delay = 500;
 
+var annotCircleR = 5;
+var annotCircleUnfocusR = 2;
+
 var color = d3.scale.category10();
 
 var svg = d3.select("body").append("svg")
@@ -58,10 +76,11 @@ var svg = d3.select("body").append("svg")
   .append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
+var first = true;
 var form; // form element used to submit annotations
 
 var symbols, // the main data set
-    nametable, // array of cost center id to cost center name
+    nametable, // array of cid (cost center id) to cost center name
     timetable; // array of tix (time index) to actual time (double)
 
 function cid2name(cid) {
@@ -77,26 +96,33 @@ function tix2time(tix) {
 }
 
 var InteractEnum = {
-  SELECT: 0,
-  ENTRY: 1
+  SELECT: 0, // we are selecting a data point to annotate
+  ENTRY: 1   // we have an active form element for annotation
 }
 var interactionMode = InteractEnum.SELECT;
 
+// use these to calculate various parameters regardless of how we've scaled things
 var x, y, line, axis, area;
 
 //var backend = "http://heap.ezyang.com";
-var backend = "http://heap.ezyang.com";
+var backend = "http://localhost:3000";
 
+// hack for ease of development
 var loc = window.location.hash ? window.location.hash.substr(1) : "ee0029431bb4cf2941d0444782e7f291000214a6";
+
+function standardTranslate(s, d) {
+    return "translate("+x(tix2time(d.tix))+","+(first ? height : y(s.values[d.tix].y+s.values[d.tix].y0))+")";
+}
+
 d3.json(backend + "/view/" + loc, function(heap) {
   symbols = heap.data;
   timetable = heap.timetable;
   nametable = heap.nametable;
 
-  x = d3.scale.linear()
-      .range([0, width - 60]);
-
-  y = d3.scale.linear();
+  // domains are data dependent, calculated later
+  x = d3.scale.linear().range([0, width - 60])
+                       .domain([tix2time(0), tix2time(timetable.length-1)]); // XXX modify me if we do vertical scrub
+  y = d3.scale.linear().range([height, 0]);
 
   // A line generator, for the dark stroke.
   line = d3.svg.line()
@@ -123,13 +149,9 @@ d3.json(backend + "/view/" + loc, function(heap) {
   symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 
   // Separate high and low contributors
-  var high = []
-  var i = 0;
-  while (symbols.length && i < showbands - 1) {
-      high.push(symbols.shift());
-      i++;
-  }
+  var high = symbols.splice(0, showbands - 1);
   if (symbols.length) {
+    // XXX saving annotations for other don't really work
     var s = {
            cid: -1,
            values: d3.transpose(symbols.map(function (s) {
@@ -142,25 +164,20 @@ d3.json(backend + "/view/" + loc, function(heap) {
     high.push(s);
   }
   symbols = high;
+  // other might be a big band, so resort!
   symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 
-  // Compute the minimum and maximum time across symbols.
-  x.domain([tix2time(0), tix2time(timetable.length-1)]);
-
+  // function because we can add new annotations on response to user input
   function doAnnotations(el, s) {
     var m = d3.select(el).selectAll(".annot")
-        .data(s.annotations)
-        .enter().insert("g").attr("class", "annot")
-        .attr("transform", function(d) { return "translate("+x(tix2time(d.tix))+","+(first ? height : y(s.values[d.tix].y+s.values[d.tix].y0))+")"; });
+      .data(s.annotations).enter()
+      .insert("g").attr("class", "annot")
+      .attr("transform", function(d) { return standardTranslate(s, d); });
     m.insert("circle")
-      .attr("r", 5)
+      .attr("r", annotCircleR)
       .style("fill", color(s.cid))
-      .style("stroke", "#000")
-      .style("stroke-width", "2px");
     m.insert("text")
-      .style("background", "#FFF")
-      .style("font-size", "12px")
-      .attr("transform", function() { return "translate(9,3)" })
+      .attr("transform", function() { return "translate(9,5)" }) // slight offset
       .text(function (a) { return a.text; });
   }
 
@@ -282,17 +299,14 @@ d3.json(backend + "/view/" + loc, function(heap) {
     markers[i] = d3.select(this).insert("circle")
       .attr("class", "edgeMark")
       .style("visibility", "hidden")
-      .attr("r", 2)
+      .attr("r", annotCircleUnfocusR)
       .style("fill", "#000")
-      .style("stroke", "#000")
-      .style("stroke-width", "2px")
       .style("opacity", 0.7); // css-ize me
   });
 
   setTimeout(stackedArea, 0);
 
 });
-var first = true;
 GraphEnum = {
 	STACKED:0,
 	STREAM:1,
@@ -310,9 +324,9 @@ function stackedArea() {
 
   stack(symbols);
 
+  // This initializes it; if you start with a non stack view you need to do something here!
   y
       .domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
-      .range([height, 0]);
 
   line
       .y(function(d) { return y(d.y0); });
@@ -339,7 +353,7 @@ function stackedArea() {
   svg.selectAll(".symbol2").each(function(s,i) {
     d3.select(this).selectAll("g.annot").transition().duration(duration/2)
       .delay(function () { delayFun(s,i) })
-      .attr("transform", function(d) { return "translate("+x(tix2time(d.tix))+","+y(s.values[d.tix].y0 + s.values[d.tix].y)+")"; });
+      .attr("transform", function(d) { return standardTranslate(s, d); });
   });
   currGraph = GraphEnum.STACKED;
   first = false;
@@ -377,7 +391,7 @@ function streamgraph() {
       .attr("d", function(d) { return area(d.values); });
   svg.selectAll(".symbol2").each(function(s) {
     d3.select(this).selectAll("g.annot").transition().duration(duration)
-      .attr("transform", function(d) { return "translate("+x(tix2time(d.tix))+","+y(s.values[d.tix].y0 + s.values[d.tix].y)+")"; });
+      .attr("transform", function(d) { return standardTranslate(s, d); });
   });
   currGraph = GraphEnum.STREAM;
 }
@@ -394,13 +408,6 @@ function overlappingArea() {
 
   g.select(".line")
       .attr("d", function(d) { return line(d.values); });
-
-  y
-      // XXX Using this scale keeps it consistent with the stackedArea scale,
-      // which makes it visually easier to see the update.
-      //.domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
-      //.domain([0, d3.max(symbols.map(function(d) { return d.maxUsage; }))])
-      .range([height, 0]);
 
   area
       .y0(height)
@@ -422,7 +429,7 @@ function overlappingArea() {
 
   svg.selectAll(".symbol2").each(function(s) {
     d3.select(this).selectAll("g.annot").transition().duration(duration)
-      .attr("transform", function(d) { return "translate("+x(tix2time(d.tix))+","+y(s.values[d.tix].y)+")"; });
+      .attr("transform", function(d) { return standardTranslate(s, d); });
   });
 
   /*
