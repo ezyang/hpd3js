@@ -137,7 +137,7 @@ var backend = "http://localhost:3000";
 // hack for ease of development
 var loc = window.location.hash ? window.location.hash.substr(1) : "ee0029431bb4cf2941d0444782e7f291000214a6";
 
-var markers = []; // the little circles which track your mouse
+var marker; // the little circle which track your mouse
 
 function calcCoords(s, tix) {
   return [x(tix2time(tix)), (first ? height : y((s.values[tix].y+s.values[tix].y0)/(currGraph == GraphEnum.NORMALIZED ? aggregate[tix].y : 1)))]
@@ -241,51 +241,50 @@ d3.json(backend + "/view/" + loc, function(heap) {
         //d3.select(d3.event.target).transition()
         //  .style("opacity", 1);
         tooltip.style("visibility", "visible").text(cid2name(s.cid));
-        if (markers[i]) {
-          if (interactionMode == InteractEnum.SELECT) {
-            markers[i].style("visibility", "visible");
-          };
-        }
+        if (interactionMode == InteractEnum.SELECT) {
+          marker.style("visibility", "visible");
+        };
       })
       .on("mousemove", function() {
         tooltip.style("top", (d3.event.pageY-10)+"px")
                       .style("left",(d3.event.pageX+10)+"px");
-        if (markers[i]) {
-          if (interactionMode == InteractEnum.SELECT) {
-            var r = calcCoords(s, calculateTix(d3.mouse(svg.node())[0]));
-            markers[i].attr("cx", r[0]).attr("cy", r[1]);
-          };
-        }
+        if (interactionMode == InteractEnum.SELECT) {
+          var r = calcCoords(s, calculateTix(d3.mouse(svg.node())[0]));
+          marker.attr("cx", r[0]).attr("cy", r[1]); // transition?
+        };
       })
       .on("mouseout", function() {
         //d3.select(d3.event.target).transition()
         //  .style("opacity", .6);
         tooltip.style("visibility", "hidden");
-        if (markers[i]) {
-          if (interactionMode == InteractEnum.SELECT) {
-            markers[i].style("visibility", "hidden");
-          }
+        if (interactionMode == InteractEnum.SELECT) {
+          marker.style("visibility", "hidden");
         }
       })
       .on("click", function() {
+        var mouseinfo = d3.mouse(svg.node())[0];
         function blurit() {
-          interactionMode = InteractEnum.SELECT;
-          markers[i].transition().duration(duration/4)
-            .attr("r", annotCircleUnfocusR)
-            .style("fill", "#000")
-            .style("opacity", 0.7);
-          form.transition().duration(duration/4)
-            .style("opacity", 0)
-            .remove();
-          form = null;
+          if (interactionMode != InteractEnum.SELECT) {
+            interactionMode = InteractEnum.SELECT;
+            marker.transition().duration(duration/4)
+              .attr("r", annotCircleUnfocusR)
+              .style("fill", "#000")
+              .style("opacity", 0.7);
+            form.transition().duration(duration/4)
+              .style("opacity", 0)
+              .remove();
+            form = null;
+          }
         }
         if (interactionMode == InteractEnum.SELECT) {
           var xcoord = calculateTix(d3.mouse(svg.node())[0]);
           interactionMode = InteractEnum.ENTRY;
-          markers[i].transition().duration(duration/4)
+          var r = calcCoords(s, calculateTix(mouseinfo));
+          marker.transition().duration(duration/4)
             .attr("r", annotCircleR)
             .style("fill", color(s.cid))
-            .style("opacity", 1);
+            .style("opacity", 1)
+            .attr("cx", r[0]).attr("cy", r[1]);
           form = svg.append("foreignObject");
           var input = form.append("xhtml:input");
           input.attr("type", "text")
@@ -327,16 +326,12 @@ d3.json(backend + "/view/" + loc, function(heap) {
 
   g2.each(function (d) { doAnnotations(this, d); });
 
-  var g3 = svg.selectAll("g.marker").data(symbols).enter().append("g")
-      .attr("class", "marker");
-  g3.each(function(d, i) {
-    markers[i] = d3.select(this).insert("circle")
-      .attr("class", "edgeMark")
-      .style("visibility", "hidden")
-      .attr("r", annotCircleUnfocusR)
-      .style("fill", "#000")
-      .style("opacity", 0.7); // css-ize me
-  });
+  marker = svg.insert("circle")
+    .attr("class", "edgeMark")
+    .style("visibility", "hidden")
+    .attr("r", annotCircleUnfocusR)
+    .style("fill", "#000")
+    .style("opacity", 0.7); // css-ize me
 
   setTimeout(function () { stackedArea(); first = false; }, 0);
 
@@ -344,7 +339,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
 
 function reset() {
   interactionMode = InteractEnum.SELECT;
-  markers.forEach(function(x) { x.style("visibility", "hidden"); });
+  marker.style("visibility", "hidden");
   if (form) {
     form.transition().duration(duration/4)
               .style("opacity", 0)
