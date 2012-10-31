@@ -81,7 +81,7 @@ var interpol = "linear"; // "basis"
 var showbands = 10;
 
 //var backend = "http://heap.ezyang.com";
-var backend = "http://localhost:3000";
+var backend = "http://heap.ezyang.com";
 
 var loc = window.location.hash ? window.location.hash.substr(1) : "ee0029431bb4cf2941d0444782e7f291000214a6";
 d3.json(backend + "/view/" + loc, function(heap) {
@@ -144,6 +144,23 @@ d3.json(backend + "/view/" + loc, function(heap) {
 
   // Compute the minimum and maximum time across symbols.
   x.domain([tix2time(0), tix2time(timetable.length-1)]);
+
+  function doAnnotations(el, s) {
+    var m = d3.select(el).selectAll(".annot")
+        .data(s.annotations)
+        .enter().insert("g").attr("class", "annot")
+        .attr("transform", function(d) { return "translate("+x(tix2time(d.tix))+","+(first ? height : y(s.values[d.tix].y+s.values[d.tix].y0))+")"; });
+    m.insert("circle")
+      .attr("r", 5)
+      .style("fill", color(s.cid))
+      .style("stroke", "#000")
+      .style("stroke-width", "2px");
+    m.insert("text")
+      .style("background", "#FFF")
+      .style("font-size", "12px")
+      .attr("transform", function() { return "translate(9,3)" })
+      .text(function (a) { return a.text; });
+  }
 
   var g = svg.selectAll("g.symbol")
       .data(symbols)
@@ -222,11 +239,17 @@ d3.json(backend + "/view/" + loc, function(heap) {
           input.attr("type", "text")
             .on("keyup", function() {
               if (d3.event.keyCode == 13) { // ENTER
+              var text = input.node().value;
               $.post(backend + "/annotate/" + loc, {
                   f2: d.cid,
                   f3: xcoord,
-                  f4: input.node().value
-                });
+                  f4: text
+                  }, function() {
+                    blurit();
+                    d.annotations.push({tix: xcoord, text: text });
+                    // XXX blah
+                    doAnnotations(svg.selectAll("g.symbol2").filter(function (x,j) { return i == j; }).node(), d);
+                  });
               }
             });
             //.on("blur", blurit);
@@ -249,22 +272,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
           .data(symbols)
           .enter().append("g").attr("class", "symbol2");
 
-  g2.each(function(d) {
-    var m = d3.select(this).selectAll(".annot")
-        .data(d.annotations)
-        .enter().insert("g").attr("class", "annot")
-        .attr("transform", function(d) { return "translate("+x(tix2time(d.tix))+","+height+")"; });
-    m.insert("circle")
-      .attr("r", 5)
-      .style("fill", color(d.cid))
-      .style("stroke", "#000")
-      .style("stroke-width", "2px");
-    m.insert("text")
-      .style("background", "#FFF")
-      .style("font-size", "12px")
-      .attr("transform", function() { return "translate(9,3)" })
-      .text(function (a) { return a.text; });
-  });
+  g2.each(function (d) { doAnnotations(this, d); });
 
   var g3 = svg.selectAll("g.marker").data(symbols).enter().append("g")
       .attr("class", "marker");
@@ -332,10 +340,10 @@ function stackedArea() {
       .attr("transform", function(d) { return "translate("+x(tix2time(d.tix))+","+y(s.values[d.tix].y0 + s.values[d.tix].y)+")"; });
   });
   currGraph = GraphEnum.STACKED;
+  first = false;
 }
 
 function streamgraph() {
-  first = false; // bum bum XXX
   var stack = d3.layout.stack()
       .values(function(d) { return d.values; })
       .x(function(d,i) { return tix2time(i); })
