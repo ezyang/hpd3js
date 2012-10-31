@@ -78,7 +78,7 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
 
   bands = symbols.length;
 
-  x = d3.time.scale()
+  x = d3.scale.linear()
       .range([0, width - 60]);
 
   y = d3.scale.linear();
@@ -137,8 +137,10 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
     .enter().append("g")
       .attr("class", "symbol");
 
+  var markers = [];
+
   // f2 f3 f4
-  g.each(function(d) {
+  g.each(function(d, i) {
     d3.select(this).selectAll(".area")
         .data(d3.range(1))
       .enter().insert("path", ".line")
@@ -152,14 +154,28 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
         //d3.select(d3.event.target).transition()
         //  .style("opacity", 1);
         tooltip.style("visibility", "visible").text(cid2name(d.cid));
-       })
+        var mouse = d3.mouse(svg.node());
+        if (markers[i]) {
+          markers[i].style("visibility", "visible");
+        };
+      })
       .on("mousemove", function() {
         tooltip.style("top", (d3.event.pageY-10)+"px")
-                      .style("left",(d3.event.pageX+10)+"px");})
+                      .style("left",(d3.event.pageX+10)+"px");
+        if (markers[i]) {
+          var mouse = d3.mouse(svg.node());
+          var xinv = x.invert(mouse[0]);
+          var rightCand = d3.bisectRight(timetable, xinv);
+          var leftCand = rightCand-1;
+          var xcoord = leftCand < 0 || tix2time(rightCand)-xinv < xinv-tix2time(leftCand) ? rightCand : leftCand;
+          markers[i].attr("cx", x(tix2time(xcoord))).attr("cy", y(d.values[xcoord].y0 + d.values[xcoord].y));
+        };
+      })
       .on("mouseout", function() {
         //d3.select(d3.event.target).transition()
         //  .style("opacity", .6);
         tooltip.style("visibility", "hidden");
+        if (markers[i]) markers[i].style("visibility", "hidden");
       });
   });
 
@@ -176,13 +192,25 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
       .attr("r", 5)
       .style("fill", color(d.cid))
       .style("stroke", "#000")
-      .style("z-index", "1")
       .style("stroke-width", "#2px");
     m.insert("text")
       .style("background", "#FFF")
       .style("font-size", "12px")
       .attr("transform", function() { return "translate(9,3)" })
       .text(function (a) { return a.text; });
+  });
+
+  var g3 = svg.selectAll("g.marker").data(symbols).enter().append("g")
+      .attr("class", "marker");
+  g3.each(function(d, i) {
+    markers[i] = d3.select(this).insert("circle")
+      .attr("class", "edgeMark")
+      .style("visibility", "hidden")
+      .attr("r", 2)
+      .style("fill", "#000")
+      .style("stroke", "#000")
+      .style("stroke-width", "#2px")
+      .style("opacity", 0.7); // css-ize me
   });
 
   setTimeout(stackedArea, 0);
@@ -281,6 +309,10 @@ function streamgraph() {
 function overlappingArea() {
   var g = svg.selectAll(".symbol");
 
+  symbols.forEach(function(s) {
+      s.values.forEach(function(d) {d.y0 = 0;});
+  });
+
   line
       .y(function(d) { return y(d.y0 + d.y); });
 
@@ -290,7 +322,7 @@ function overlappingArea() {
   y
       // XXX Using this scale keeps it consistent with the stackedArea scale,
       // which makes it visually easier to see the update.
-      .domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
+      //.domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
       //.domain([0, d3.max(symbols.map(function(d) { return d.maxUsage; }))])
       .range([height, 0]);
 
