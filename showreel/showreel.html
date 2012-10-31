@@ -303,7 +303,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
             // XXX gotta watch out for double-event if you add blur and click
           form.attr("width", 250).attr("height", "1.5em").style("opacity", 0)
             .attr("x", x(tix2time(xcoord)))
-            .attr("y", y(d.values[xcoord].y0 + d.values[xcoord].y))
+            .attr("y", y(s.values[xcoord].y0 + s.values[xcoord].y))
             .style("visibility", "visible")
             .transition().duration(duration/4)
             .style("opacity", 1);
