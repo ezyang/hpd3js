@@ -137,9 +137,13 @@ var backend = "http://localhost:3000";
 // hack for ease of development
 var loc = window.location.hash ? window.location.hash.substr(1) : "ee0029431bb4cf2941d0444782e7f291000214a6";
 
+function calcCoords(s, tix) {
+  return [x(tix2time(tix)), (first ? height : y((s.values[tix].y+s.values[tix].y0)/(currGraph == GraphEnum.NORMALIZED ? aggregate[tix].y : 1)))]
+}
+
 function standardTranslate(s, d) {
-  return "translate("+x(tix2time(d.tix))+","+
-    (first ? height : y((s.values[d.tix].y+s.values[d.tix].y0)/(currGraph == GraphEnum.NORMALIZED ? aggregate[d.tix].y : 1)))+")";
+  var r = calcCoords(s, d.tix);
+  return "translate("+r[0]+","+r[1]+")";
 }
 
 d3.json(backend + "/view/" + loc, function(heap) {
@@ -248,8 +252,8 @@ d3.json(backend + "/view/" + loc, function(heap) {
                       .style("left",(d3.event.pageX+10)+"px");
         if (markers[i]) {
           if (interactionMode == InteractEnum.SELECT) {
-            var xcoord = calculateTix(d3.mouse(svg.node())[0]);
-            markers[i].attr("cx", x(tix2time(xcoord))).attr("cy", y(s.values[xcoord].y0 + s.values[xcoord].y));
+            var r = calcCoords(s, calculateTix(d3.mouse(svg.node())[0]));
+            markers[i].attr("cx", r[0]).attr("cy", r[1]);
           };
         }
       })
@@ -298,12 +302,13 @@ d3.json(backend + "/view/" + loc, function(heap) {
                     doAnnotations(svg.selectAll("g.symbol2").filter(function (x,j) { return i == j; }).node(), s);
                   });
               }
-            });
-            //.on("blur", blurit);
+            })
+            .on("blur", blurit);
             // XXX gotta watch out for double-event if you add blur and click
+          var r = calcCoords(s, xcoord);
           form.attr("width", 250).attr("height", "1.5em").style("opacity", 0)
-            .attr("x", x(tix2time(xcoord)))
-            .attr("y", y(s.values[xcoord].y0 + s.values[xcoord].y))
+            .attr("x", r[0])
+            .attr("y", r[1])
             .style("visibility", "visible")
             .transition().duration(duration/4)
             .style("opacity", 1);
