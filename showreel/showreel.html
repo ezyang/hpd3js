@@ -37,6 +37,17 @@ svg {
   font-size: 12px;
 }
 
+.area {
+  transition-property: opacity;
+  transition-duration: 250ms;
+  transition-timing-function: linear;
+  opacity: 0.45;
+}
+
+.area:hover {
+  opacity: 0.65;
+}
+
     </style>
   </head>
   <body>
@@ -164,7 +175,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
     high.push(s);
   }
   symbols = high;
-  // other might be a big band, so resort!
+  // other might be a big band, so re-sort!
   symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 
   // function because we can add new annotations on response to user input
@@ -188,8 +199,9 @@ d3.json(backend + "/view/" + loc, function(heap) {
 
   var markers = [];
 
-  // f2 f3 f4
   g.each(function(d, i) {
+    // reverse engineers an SVG relative pixel into a tix
+    // XXX move out, but has dependence on x()
     function calculateTix(xpixel) {
       var xinv = x.invert(xpixel);
       var rightCand = d3.bisectRight(timetable, xinv);
@@ -202,7 +214,6 @@ d3.json(backend + "/view/" + loc, function(heap) {
         .attr("class", "area")
         .style("fill", color(d.cid))
         .attr("d", function(irrelevant) { return area(d.values); })
-        .style("opacity", .6)
       .on("mouseover", function() {
         // D3 doesn't support concurrent disjoint transitions on the same
         // elements, so this causes visual artifacts. Disabled.
@@ -239,9 +250,9 @@ d3.json(backend + "/view/" + loc, function(heap) {
         function blurit() {
           interactionMode = InteractEnum.SELECT;
           markers[i].transition().duration(duration/4)
-            .attr("r", 2)
-            .style("fill", "#000") // dup dup
-            .style("opacity", 0.7); // css-ize me
+            .attr("r", annotCircleUnfocusR)
+            .style("fill", "#000")
+            .style("opacity", 0.7);
           form.transition().duration(duration/4)
             .style("opacity", 0)
             .remove();
@@ -250,9 +261,9 @@ d3.json(backend + "/view/" + loc, function(heap) {
           var xcoord = calculateTix(d3.mouse(svg.node())[0]);
           interactionMode = InteractEnum.ENTRY;
           markers[i].transition().duration(duration/4)
-            .attr("r", 5)
+            .attr("r", annotCircleR)
             .style("fill", color(d.cid))
-            .style("opacity", 1); // css-ize me
+            .style("opacity", 1);
           form = svg.append("foreignObject");
           var input = form.append("xhtml:input");
           input.attr("type", "text")
