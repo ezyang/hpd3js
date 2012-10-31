@@ -26,11 +26,12 @@ svg {
     <script type="text/javascript">
 
 var tooltip = d3.select("body")
-	.append("div")
-	.style("position", "absolute")
-	.style("z-index", "10")
-	.style("visibility", "hidden")
-	.text("Tooltip default text");
+    .append("div")
+    .style("position", "absolute")
+    .style("z-index", "10")
+    .style("visibility", "hidden")
+    .style("background", "#FFF")
+    .text("Tooltip default text");
 
 var margin = {top: 10, right: 10, bottom: 10, left: 10},
     width = 800 - margin.right - margin.left,
@@ -98,6 +99,7 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
   area = d3.svg.area()
       .interpolate(interpol)
       .x(function(d,i) { return x(tix2time(i)); })
+      .y(height)
 
   symbols.forEach(function(s) {
     s.maxUsage = d3.max(s.values, function(d) { return d.y; });
@@ -117,7 +119,8 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
            cid: -1,
            values: d3.transpose(symbols.map(function (s) {
                        return s.values.map(function (d) { return d.y; });
-                    })).map(function (x) { return {y: d3.sum(x)}; })
+                    })).map(function (x) { return {y: d3.sum(x)}; }),
+           annotations: []
     };
     s.maxUsage = d3.max(s.values, function(d) { return d.y; });
     s.sumUsage = d3.sum(s.values, function(d) { return d.y; });
@@ -129,7 +132,7 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
   // Compute the minimum and maximum time across symbols.
   x.domain([tix2time(0), tix2time(timetable.length-1)]);
 
-  var g = svg.selectAll("g")
+  var g = svg.selectAll("g.symbol")
       .data(symbols)
     .enter().append("g")
       .attr("class", "symbol");
@@ -140,17 +143,43 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
       .enter().insert("path", ".line")
         .attr("class", "area")
         .style("fill", color(d.cid))
+        .attr("d", function(irrelevant) { return area(d.values); })
         .style("opacity", .6)
-      .on("mouseover", function(){
-      	  	  d3.select(d3.event.target).transition()
-         .style("opacity", 1);
-      return tooltip.style("visibility", "visible").text(cid2name(d.cid));})
-	  .on("mousemove", function(){
-	  return tooltip.style("top", (d3.event.pageY-10)+"px").style("left",(d3.event.pageX+10)+"px");})
-	  .on("mouseout", function(){
-	  d3.select(d3.event.target).transition()
-      .style("opacity", .6);
-	  return tooltip.style("visibility", "hidden");});
+      .on("mouseover", function() {
+         d3.select(d3.event.target).transition()
+           .style("opacity", 1);
+         return tooltip.style("visibility", "visible").text(cid2name(d.cid));
+       })
+      .on("mousemove", function() {
+        return tooltip.style("top", (d3.event.pageY-10)+"px")
+                      .style("left",(d3.event.pageX+10)+"px");})
+      .on("mouseout", function() {
+        d3.select(d3.event.target).transition()
+          .style("opacity", .6);
+        return tooltip.style("visibility", "hidden");
+      });
+  });
+
+  var g2 = svg.selectAll("g.symbol2")
+          .data(symbols)
+          .enter().append("g").attr("class", "symbol2");
+
+  g2.each(function(d) {
+    var m = d3.select(this).selectAll(".annot")
+        .data(d.annotations)
+        .enter().insert("g").attr("class", "annot")
+        .attr("transform", function(d) { return "translate("+x(tix2time(d.tix))+","+height+")"; });
+    m.insert("circle")
+      .attr("r", 5)
+      .style("fill", color(d.cid))
+      .style("stroke", "#000")
+      .style("z-index", "1")
+      .style("stroke-width", "#2px");
+    m.insert("text")
+      .style("background", "#FFF")
+      .style("font-size", "12px")
+      .attr("transform", function() { return "translate(9,3)" })
+      .text(function (a) { return a.text; });
   });
 
   setTimeout(stackedArea, 0);
@@ -194,12 +223,18 @@ function stackedArea() {
   }
   var easeOver = showbands * 150;
 
+  var delayFun = function(d, i) { return (first||currGraph==GraphEnum.STREAM) ? 0 : easeOver * easing(i/showbands); };
+
   t.select("path.area")
-    .delay(function(d, i) { return (first||currGraph==GraphEnum.STREAM) ? 0 : easeOver * easing(i/showbands); })
+    .delay(delayFun)
     .style("fill-opacity", 1)
     .attr("d", function(d) { return area(d.values); });
+  svg.selectAll(".symbol2").each(function(s,i) {
+    d3.select(this).selectAll("g.annot").transition().duration(duration/2)
+      .delay(function () { delayFun(s,i) })
+      .attr("transform", function(d) { return "translate("+x(tix2time(d.tix))+","+y(s.values[d.tix].y0 + s.values[d.tix].y)+")"; });
+  });
   currGraph = GraphEnum.STACKED;
-  //setTimeout(streamgraph, duration/2 + delay + (first ? 0 : easeOver));
 }
 
 function streamgraph() {
@@ -233,8 +268,11 @@ function streamgraph() {
   t.select(".area")
       .style("fill-opacity", 1)
       .attr("d", function(d) { return area(d.values); });
+  svg.selectAll(".symbol2").each(function(s) {
+    d3.select(this).selectAll("g.annot").transition().duration(duration)
+      .attr("transform", function(d) { return "translate("+x(tix2time(d.tix))+","+y(s.values[d.tix].y0 + s.values[d.tix].y)+")"; });
+  });
   currGraph = GraphEnum.STREAM;
-  //setTimeout(overlappingArea, duration + delay);
 }
 
 function overlappingArea() {
@@ -271,6 +309,12 @@ function overlappingArea() {
       //.style("fill-opacity", .5)
       .attr("d", function(d) { return area(d.values); });
 
+  svg.selectAll(".symbol2").each(function(s) {
+    d3.select(this).selectAll("g.annot").transition().duration(duration)
+      .attr("transform", function(d) { return "translate("+x(tix2time(d.tix))+","+y(s.values[d.tix].y)+")"; });
+  });
+
+  /*
   svg.append("line")
       .attr("class", "line")
       .attr("x1", 0)
@@ -281,10 +325,8 @@ function overlappingArea() {
       .transition()
       .duration(duration)
       .style("stroke-opacity", 1);
+      */
   currGraph = GraphEnum.OVERLAY;
-  //setTimeout(stackedArea, duration + delay);
-
-
 }
 
 function annotate() {
@@ -295,11 +337,5 @@ A = document.annotationForm.annotation.value
     <button id="stream" title="Toggle between streamgraph, stackgraph or overlay chart" onclick="streamgraph()">Stream Graph</button>
     <button id="stack" title="Toggle between streamgraph, stackgraph or overlay chart" onclick="stackedArea()">Stacked Graph</button>
     <button id="overlay" title="Toggle between streamgraph, stackgraph or overlay chart" onclick="overlappingArea()">Overlayed area Graph</button></br>
-<FORM NAME = annotationForm>
-Annotation to add: <INPUT TYPE = Text NAME = annotation SIZE = 20 value ="">
-<P>
-<Input Type = Button NAME = b1 VALUE = "Add text" onClick = "annotate()">
-
-</FORM>
   </body>
 </html>
