@@ -15,9 +15,9 @@ Profile
     UniqueHash hash
     uploadTime UTCTime
     runTime UTCTime
-ProfileAnnotation
+Annotation
     profileId ProfileId Eq
     costCenter Int
-    time Double
-    UniqueProfileAnnotation profileId costCenter time
+    timeIndex Int
+    UniqueAnnotation profileId costCenter timeIndex
     text Text

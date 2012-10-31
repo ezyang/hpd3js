@@ -9,9 +9,7 @@ import System.IO.Unsafe
 import Control.Exception (evaluate)
 
 import qualified Data.IntMap as IntMap
-import Data.IntMap (IntMap)
--- XXX not strict; when we get late enough containers switch to Strict
-import qualified Data.Map as Map
+import Data.IntMap (IntMap) -- not strict
 import Data.List (foldl')
 import Data.Time
 import Data.String
@@ -33,14 +31,11 @@ import Data.Time.Git
 
 -- XXX Gotta do history
 
-dateTimeFormat :: String
-dateTimeFormat = "%Y-%m-%d %H:%M:%S UTC"
-
 uploadDirectory :: IsString a => a
 uploadDirectory = "uploaded"
 
 format :: UTCTime -> String
-format = formatTime defaultTimeLocale dateTimeFormat
+format = formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S UTC"
 
 getHomeR :: Handler RepHtml
 getHomeR = do
@@ -54,13 +49,13 @@ getHomeR = do
 getViewR :: Hash -> Handler RepHtmlJson
 getViewR hash = do
     Entity pid profile <- runDB $ getBy404 (UniqueHash hash)
-    annotations <- runDB $ selectList [ProfileAnnotationProfileId ==. pid] [Asc ProfileAnnotationCostCenter]
+    annotations <- runDB $ selectList [AnnotationProfileId ==. pid] [Asc AnnotationCostCenter, Asc AnnotationTimeIndex]
     let path     = "static" </> uploadDirectory </> Text.unpack (unHash hash)
         lpath    = StaticR (StaticRoute [uploadDirectory, unHash hash] [])
         -- Iframe is temporary hack before we merge the two codebases
         showreel = "http://ezyang.github.com/hpd3js/showreel/showreel.html#" ++ Text.unpack (unHash hash)
-        sliceAnnot (Entity _ a) = (profileAnnotationCostCenter a, Map.singleton (profileAnnotationTime a) (profileAnnotationText a))
-        annotMap = IntMap.fromAscListWith Map.union (map sliceAnnot annotations)
+        sliceAnnot (Entity _ a) = (annotationCostCenter a, IntMap.singleton (annotationTimeIndex a) (annotationText a))
+        annotMap = IntMap.fromAscListWith IntMap.union (map sliceAnnot annotations)
     let html = do
             setTitle . toHtml $ profileTitle profile
             [whamlet|
@@ -81,31 +76,45 @@ getViewR hash = do
         -- assume that forcing pdata is sufficient to close the file
         -- descriptor; otherwise we have an fd leak!
         Just pdata = unsafePerformIO (readProfile path)
-        buildSeries (cid, samples) = object [ "cid" .= cid
-                                            , "data" .= array samples
+        buildSeries (cid, samples) = object [ "cid"  .= cid
+                                            , "values" .= array (map makePoint (insertMissing samples timetable))
                                             ]
+        makePoint y = object ["y" .= y]
+        -- Compares an association list with a key list and fills in
+        -- missing data with zeros.
+        insertMissing :: (Eq k, Num a) => [(k, a)] -> [k] -> [a]
+        insertMissing [] ys = map (const 0) ys
+        insertMissing (_:_) [] = error "insertMissing: Impossible, ran out of times"
+        insertMissing ((t,x):xs) (y:ys) | t == y    = x : insertMissing xs ys
+                                        | otherwise = 0 : insertMissing ((t,x):xs) ys
+
+        -- Combines adjacent list entries with the same index
         fx [new] [] = [new]
         fx [(time', cost')] old@((time, cost):xs) | time' == time = (time, cost + cost'):xs
                                                   | otherwise     = (time', cost'):old
         fx _ _ = error "Invariant broken on fx"
+
         addSampleData time xs (cid, cost) = IntMap.insertWith fx cid [(time, cost)] xs
         addSample :: IntMap [(Prof.Time, Prof.Cost)] -> (Prof.Time, Prof.ProfileSample) -> IntMap [(Prof.Time, Prof.Cost)]
         addSample xs (time, sample) = foldl' (addSampleData time) xs sample
-        json = object [ "data" .= array (map buildSeries (IntMap.toList (foldl' addSample IntMap.empty (Prof.prSamples pdata))))
-                      , "samples" .= array (reverse (map fst (Prof.prSamples pdata)))
-                      , "centers" .= array (listfill 0 (IntMap.toAscList (Prof.prNames pdata)))
+
+        timetable = reverse (map fst (Prof.prSamples pdata))
+        json = object [ "data"      .= array (map buildSeries (IntMap.toList (foldl' addSample IntMap.empty (Prof.prSamples pdata))))
+                      , "timetable" .= array timetable
+                      , "nametable" .= array (makeContiguous 0 (IntMap.toAscList (Prof.prNames pdata)))
                       ]
-        -- Invariant: input list must be ascending and distinct.
-        -- Arranges that element (i, x) in the input is Just x in
-        -- the ith position of the output list.  If i is missing from
-        -- the input puts in Nothing
-        listfill :: Int -> [(Int, a)] -> [Maybe a]
-        listfill _ [] = []
-        listfill k o@((i, x):xs) | k == i    = Just x  : listfill (k+1) xs
-                                 | otherwise = Nothing : listfill (k+1) o
     -- Watch out, no sensitive data allowed!
     setHeader "Access-Control-Allow-Origin" "*"
     defaultLayoutJson html json
+
+-- Invariant: input list must be ascending and distinct.
+-- Given j, arranges that element (i, x) in the input is Just x in
+-- the (i-j)th position of the output list.  If i is missing from
+-- the input puts in Nothing.
+makeContiguous :: Int -> [(Int, a)] -> [Maybe a]
+makeContiguous _ [] = []
+makeContiguous k o@((i, x):xs) | k == i    = Just x  : makeContiguous (k+1) xs
+                               | otherwise = Nothing : makeContiguous (k+1) o
 
 editForm :: Profile -> Form (Text, Textarea)
 editForm profile = renderDivs $ (,)
@@ -166,13 +175,13 @@ postAnnotateR hash = do
     Entity pid _ <- runDB $ getBy404 (UniqueHash hash)
     ((result, _), _) <- runFormPost annotateForm
     handleForm result $ \(cc, time, text) -> do
-    _ <- runDB . insert $ ProfileAnnotation pid cc time text
+    _ <- runDB . insert $ Annotation pid cc time text
     redirect (ViewR hash)
 
-annotateForm :: Form (Int, Double, Text)
+annotateForm :: Form (Int, Int, Text)
 annotateForm = renderDivs $ (,,)
     <$> areq intField "Cost center:" Nothing
-    <*> areq doubleField "Time:" Nothing
+    <*> areq intField "Time:" Nothing
     <*> areq textField "Title:" Nothing
 
 postUploadR :: Handler RepHtml

@@ -48,16 +48,20 @@ var svg = d3.select("body").append("svg")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
 var symbols,
-    mysamples,
-    namelookup,
+    nametable,
+    timetable,
     bands;
 
 function cid2name(cid) {
     if (cid == -1) {
         return "OTHER";
     } else {
-        return namelookup[cid];
+        return nametable[cid];
     }
+}
+
+function tix2time(tix) {
+    return timetable[tix];
 }
 
 var x, y, line, axis, area;
@@ -66,86 +70,64 @@ var interpol = "linear"; // "basis"
 var showbands = 10;
 
 var loc = window.location.hash ? window.location.hash.substr(1) : "ee0029431bb4cf2941d0444782e7f291000214a6";
-d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
+d3.json("http://localhost:3000/view/" + loc, function(heap) {
   symbols = heap.data;
-  mysamples = heap.samples;
-  namelookup = heap.centers;
+  timetable = heap.timetable;
+  nametable = heap.nametable;
 
   bands = symbols.length;
 
   x = d3.time.scale()
       .range([0, width - 60]);
 
-  y = d3.scale.linear()
-      .range([height / bands - 20, 0]);
+  y = d3.scale.linear();
 
   // A line generator, for the dark stroke.
   line = d3.svg.line()
       .interpolate(interpol)
-      .x(function(d) { return x(d.time); })
-      .y(function(d) { return y(d.usage); });
+      .x(function(d,i) { return x(tix2time(i)); })
+      .y(function(d) { return y(d.y); });
 
   // A line generator, for the dark stroke.
   axis = d3.svg.line()
       .interpolate(interpol)
-      .x(function(d) { return x(d.time); })
+      .x(function(d,i) { return x(tix2time(i)); })
       .y(height);
 
   // A area generator, for the dark stroke.
   area = d3.svg.area()
       .interpolate(interpol)
-      .x(function(d) { return x(d.time); })
-      .y0(height / bands - 20)
-      .y1(function(d) { return y(d.usage); });
+      .x(function(d,i) { return x(tix2time(i)); })
 
   symbols.forEach(function(s) {
-    s.values = [];
-    // HACK: fill in missing data
-    i = 0;
-    s.data.forEach(function (x) {
-      while (x[0] != mysamples[i]) {
-        s.values.push({time: mysamples[i], usage: 0.0});
-        i++;
-      }
-      s.values.push({time: x[0], usage: x[1]});
-      i++;
-    });
-    while (i < mysamples.length) {
-      s.values.push({time: mysamples[i], usage: 0.0});
-      i++;
-    }
-    delete s.data;
-    s.maxUsage = d3.max(s.values, function(d) { return d.usage; });
-    s.sumUsage = d3.sum(s.values, function(d) { return d.usage; });
+    s.maxUsage = d3.max(s.values, function(d) { return d.y; });
+    s.sumUsage = d3.sum(s.values, function(d) { return d.y; });
   });
   symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 
   // Separate high and low contributors
   var high = []
   var i = 0;
-  while (symbols.length && i < showbands) {
+  while (symbols.length && i < showbands - 1) {
       high.push(symbols.shift());
       i++;
   }
   if (symbols.length) {
-    var othervalues = d3.transpose(symbols.map(function (s) {
-        return s.values.map(function(x) {
-          return x.usage;
-        });
-      })).map(function (x) { return d3.sum(x); });
-    var otherdata = {
-      cid: -1,
-      values: d3.zip(mysamples,othervalues).map(function (x) {return {time: x[0], usage: x[1]}})
+    var s = {
+           cid: -1,
+           values: d3.transpose(symbols.map(function (s) {
+                       return s.values.map(function (d) { return d.y; });
+                    })).map(function (x) { return {y: d3.sum(x)}; })
     };
-    high.push();
+    s.maxUsage = d3.max(s.values, function(d) { return d.y; });
+    s.sumUsage = d3.sum(s.values, function(d) { return d.y; });
+    high.push(s);
   }
   symbols = high;
+  symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 
   // Compute the minimum and maximum time across symbols.
-  x.domain([
-    d3.min(symbols, function(d) { return d.values[0].time; }),
-    d3.max(symbols, function(d) { return d.values[d.values.length - 1].time; })
-  ]);
+  x.domain([tix2time(0), tix2time(timetable.length-1)]);
 
   var g = svg.selectAll("g")
       .data(symbols)
@@ -164,7 +146,7 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
          .style("opacity", 1);
       return tooltip.style("visibility", "visible").text(cid2name(d.cid));})
 	  .on("mousemove", function(){
-	  return tooltip.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px");})
+	  return tooltip.style("top", (d3.event.pageY-10)+"px").style("left",(d3.event.pageX+10)+"px");})
 	  .on("mouseout", function(){
 	  d3.select(d3.event.target).transition()
       .style("opacity", .6);
@@ -184,24 +166,24 @@ var currGraph = GraphEnum.STACKED;
 
 function stackedArea() {
   var stack = d3.layout.stack()
-      .values(function(d) { return d.values; })
-      .x(function(d) { return d.time; })
-      .y(function(d) { return d.usage; })
-      .out(function(d, y0, y) { d.usage0 = y0; })
+      .values(function(s) { return s.values; })
+      .x(function(d,i) { return tix2time(i); })
+      .y(function(d) { return d.y; })
+      .out(function(d, y0, y) { d.y0 = y0; })
       .order("reverse");
 
   stack(symbols);
 
   y
-      .domain([0, d3.max(symbols[0].values.map(function(d) { return d.usage + d.usage0; }))])
+      .domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
       .range([height, 0]);
 
   line
-      .y(function(d) { return y(d.usage0); });
+      .y(function(d) { return y(d.y0); });
 
   area
-      .y0(function(d) { return y(d.usage0); })
-      .y1(function(d) { return y(d.usage0 + d.usage); });
+      .y0(function(d) { return y(d.y0); })
+      .y1(function(d) { return y(d.y0 + d.y); });
 
   var t = svg.selectAll(".symbol").transition()
         .duration(duration/2);
@@ -224,20 +206,20 @@ function streamgraph() {
   first = false; // bum bum XXX
   var stack = d3.layout.stack()
       .values(function(d) { return d.values; })
-      .x(function(d) { return d.time; })
-      .y(function(d) { return d.usage; })
-      .out(function(d, y0, y) { d.usage0 = y0; })
+      .x(function(d,i) { return tix2time(i); })
+      .y(function(d) { return d.y; })
+      .out(function(d, y0, y) { d.y0 = y0; })
       .order("reverse")
       .offset("wiggle");
 
   stack(symbols);
 
   line
-      .y(function(d) { return y(d.usage0); });
+      .y(function(d) { return y(d.y0); });
 
   area
-      .y0(function(d) { return y(d.usage0); })
-      .y1(function(d) { return y(d.usage0 + d.usage); });
+      .y0(function(d) { return y(d.y0); })
+      .y1(function(d) { return y(d.y0 + d.y); });
 
   var t = svg.selectAll(".symbol").transition()
       .duration(duration);
@@ -259,7 +241,7 @@ function overlappingArea() {
   var g = svg.selectAll(".symbol");
 
   line
-      .y(function(d) { return y(d.usage0 + d.usage); });
+      .y(function(d) { return y(d.y0 + d.y); });
 
   g.select(".line")
       .attr("d", function(d) { return line(d.values); });
@@ -267,16 +249,16 @@ function overlappingArea() {
   y
       // XXX Using this scale keeps it consistent with the stackedArea scale,
       // which makes it visually easier to see the update.
-      .domain([0, d3.max(symbols[0].values.map(function(d) { return d.usage + d.usage0; }))])
+      .domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
       //.domain([0, d3.max(symbols.map(function(d) { return d.maxUsage; }))])
       .range([height, 0]);
 
   area
       .y0(height)
-      .y1(function(d) { return y(d.usage); });
+      .y1(function(d) { return y(d.y); });
 
   line
-      .y(function(d) { return y(d.usage); });
+      .y(function(d) { return y(d.y); });
 
   var t = g.transition()
       .duration(duration);
