@@ -49,13 +49,14 @@ getHomeR = do
 getViewR :: Hash -> Handler RepHtmlJson
 getViewR hash = do
     Entity pid profile <- runDB $ getBy404 (UniqueHash hash)
-    annotations <- runDB $ selectList [AnnotationProfileId ==. pid] [Asc AnnotationCostCenter, Asc AnnotationTimeIndex]
+    annotations <- runDB $ selectList [AnnotationProfileId ==. pid] [Asc AnnotationCostCenter]
     let path     = "static" </> uploadDirectory </> Text.unpack (unHash hash)
         lpath    = StaticR (StaticRoute [uploadDirectory, unHash hash] [])
         -- Iframe is temporary hack before we merge the two codebases
         showreel = "http://ezyang.github.com/hpd3js/showreel/showreel.html#" ++ Text.unpack (unHash hash)
-        sliceAnnot (Entity _ a) = (annotationCostCenter a, IntMap.singleton (annotationTimeIndex a) (annotationText a))
-        annotMap = IntMap.fromAscListWith IntMap.union (map sliceAnnot annotations)
+        sliceAnnot (Entity _ a) = (annotationCostCenter a,
+                                  [object ["tix" .= annotationTimeIndex a, "text" .= annotationText a]])
+        annotMap = IntMap.fromAscListWith (++) (map sliceAnnot annotations)
     let html = do
             setTitle . toHtml $ profileTitle profile
             [whamlet|
@@ -78,6 +79,7 @@ getViewR hash = do
         Just pdata = unsafePerformIO (readProfile path)
         buildSeries (cid, samples) = object [ "cid"  .= cid
                                             , "values" .= array (map makePoint (insertMissing samples timetable))
+                                            , "annotations" .= array (IntMap.findWithDefault [] cid annotMap)
                                             ]
         makePoint y = object ["y" .= y]
         -- Compares an association list with a key list and fills in
@@ -182,7 +184,7 @@ annotateForm :: Form (Int, Int, Text)
 annotateForm = renderDivs $ (,,)
     <$> areq intField "Cost center:" Nothing
     <*> areq intField "Time:" Nothing
-    <*> areq textField "Title:" Nothing
+    <*> areq textField "Text:" Nothing
 
 postUploadR :: Handler RepHtml
 postUploadR = do
