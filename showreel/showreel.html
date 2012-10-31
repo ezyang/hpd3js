@@ -137,6 +137,7 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
     .enter().append("g")
       .attr("class", "symbol");
 
+  // f2 f3 f4
   g.each(function(d) {
     d3.select(this).selectAll(".area")
         .data(d3.range(1))
@@ -146,17 +147,19 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
         .attr("d", function(irrelevant) { return area(d.values); })
         .style("opacity", .6)
       .on("mouseover", function() {
-         d3.select(d3.event.target).transition()
-           .style("opacity", 1);
-         return tooltip.style("visibility", "visible").text(cid2name(d.cid));
+        // D3 doesn't support concurrent disjoint transitions on the same
+        // elements, so this causes visual artifacts. Disabled.
+        //d3.select(d3.event.target).transition()
+        //  .style("opacity", 1);
+        tooltip.style("visibility", "visible").text(cid2name(d.cid));
        })
       .on("mousemove", function() {
-        return tooltip.style("top", (d3.event.pageY-10)+"px")
+        tooltip.style("top", (d3.event.pageY-10)+"px")
                       .style("left",(d3.event.pageX+10)+"px");})
       .on("mouseout", function() {
-        d3.select(d3.event.target).transition()
-          .style("opacity", .6);
-        return tooltip.style("visibility", "hidden");
+        //d3.select(d3.event.target).transition()
+        //  .style("opacity", .6);
+        tooltip.style("visibility", "hidden");
       });
   });
 
