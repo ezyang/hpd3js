@@ -14,6 +14,7 @@ import Data.List (foldl')
 import Data.Time
 import Data.String
 import Data.Function
+import Data.Maybe
 import qualified Data.Text.Encoding as Text
 import qualified Data.ByteString.Base16 as Base16
 import qualified Data.Text as Text
@@ -37,6 +38,14 @@ uploadDirectory = "uploaded"
 format :: UTCTime -> String
 format = formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S UTC"
 
+-- Unsafe IO so that the results can be lazy.  Since it's by hash,
+-- the contents are invariant, making this pretty safe.  We
+-- assume that forcing pdata is sufficient to close the file
+-- descriptor; otherwise we have an fd leak!
+loadProfile :: Hash -> Prof.Profile
+loadProfile hash = fromMaybe (error "Bad profile in store!") (unsafePerformIO (readProfile path))
+    where path = "static" </> uploadDirectory </> Text.unpack (unHash hash)
+
 getHomeR :: Handler RepHtml
 getHomeR = do
     (formWidget, formEnctype) <- generateFormPost uploadForm
@@ -50,8 +59,7 @@ getViewR :: Hash -> Handler RepHtmlJson
 getViewR hash = do
     Entity pid profile <- runDB $ getBy404 (UniqueHash hash)
     annotations <- runDB $ selectList [AnnotationProfileId ==. pid] [Asc AnnotationCostCenter]
-    let path     = "static" </> uploadDirectory </> Text.unpack (unHash hash)
-        lpath    = StaticR (StaticRoute [uploadDirectory, unHash hash] [])
+    let lpath    = StaticR (StaticRoute [uploadDirectory, unHash hash] [])
         -- Iframe is temporary hack before we merge the two codebases
         showreel = "http://ezyang.github.com/hpd3js/showreel/showreel.html#" ++ Text.unpack (unHash hash)
         sliceAnnot (Entity _ a) = (annotationCostCenter a,
@@ -72,11 +80,7 @@ getViewR hash = do
                        \#{profileDescription profile} (<a href=@{EditR hash}>Edit</a>)
                      <iframe width="100%" height="550px" frameborder="0" src=#{showreel} />
                         |]
-        -- Only read the file if we're doing JSON.  Since it's by hash,
-        -- the contents are invariant, making this pretty safe.  We
-        -- assume that forcing pdata is sufficient to close the file
-        -- descriptor; otherwise we have an fd leak!
-        Just pdata = unsafePerformIO (readProfile path)
+        pdata = loadProfile hash
         buildSeries (cid, samples) = object [ "cid"  .= cid
                                             , "values" .= array (map makePoint (insertMissing samples timetable))
                                             , "annotations" .= array (IntMap.findWithDefault [] cid annotMap)
@@ -141,10 +145,11 @@ handleForm result f = case result of
     FormSuccess r -> f r
     FormFailure es -> defaultLayout $ do
         setTitle "Failure"
-        [whamlet|<h1>Failure
-                 <ul>
-                   $forall e <- es
-                     <li>#{e}
+        [whamlet|
+             <h1>Failure
+             <ul>
+               $forall e <- es
+                 <li>#{e}
         |]
     FormMissing -> defaultLayout $ do
         setTitle "Missing data"
@@ -161,7 +166,7 @@ postEditR hash = do
 getAnnotateR :: Hash -> Handler RepHtml
 getAnnotateR hash = do
     Entity _ _ <- runDB $ getBy404 (UniqueHash hash)
-    (formWidget, formEnctype) <- generateFormPost annotateForm
+    (formWidget, formEnctype) <- generateFormPost (annotateForm hash)
     defaultLayout $ do
         setTitle "Add annotation to #{profileTitle profile}"
         [whamlet|
@@ -175,16 +180,22 @@ getAnnotateR hash = do
 postAnnotateR :: Hash -> Handler RepHtml
 postAnnotateR hash = do
     Entity pid _ <- runDB $ getBy404 (UniqueHash hash)
-    ((result, _), _) <- runFormPost annotateForm
+    ((result, _), _) <- runFormPost (annotateForm hash)
     handleForm result $ \(cc, time, text) -> do
     _ <- runDB . insert $ Annotation pid cc time text
     redirect (ViewR hash)
 
-annotateForm :: Form (Int, Int, Text)
-annotateForm = renderDivs $ (,,)
-    <$> areq intField "Cost center:" Nothing
-    <*> areq intField "Time:" Nothing
+annotateForm :: Hash -> Form (Int, Int, Text)
+annotateForm hash = renderDivs $ (,,)
+    <$> areq (check validateCostCenter intField) "Cost center:" Nothing
+    <*> areq (check validateTimeIndex  intField) "Time index:"  Nothing
     <*> areq textField "Text:" Nothing
+    where validateCostCenter x | IntMap.member x (Prof.prNames pdata) = Right x
+                               | otherwise = Left ("Unknown cost-center" :: Text)
+          validateTimeIndex  x | x < 0 = Left ("Time index cannot be negative" :: Text)
+                               | x >= length (Prof.prSamples pdata) = Left ("Time index out of bounds" :: Text)
+                               | otherwise = Right x
+          pdata = loadProfile hash
 
 postUploadR :: Handler RepHtml
 postUploadR = do
