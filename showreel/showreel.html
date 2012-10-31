@@ -22,18 +22,26 @@ svg {
   stroke-width: 2px;
 }
 
+.tooltip {
+  position: absolute;
+  z-index: 10;
+  background: #FFF;
+}
+
     </style>
   </head>
   <body>
     <script type="text/javascript">
 
+// some parameters
+
+var interpol = "linear"; // "basis" will cause problems with annotation placement
+var showbands = 10; // how many bands to show (the last band will be "OTHER")
+
 var tooltip = d3.select("body")
     .append("div")
-    .style("position", "absolute")
-    .style("z-index", "10")
-    .style("visibility", "hidden")
-    .style("background", "#FFF")
-    .text("Tooltip default text");
+    .attr("class", "tooltip")
+    .style("visibility", "hidden");
 
 var margin = {top: 10, right: 10, bottom: 10, left: 10},
     width = 800 - margin.right - margin.left,
@@ -50,12 +58,11 @@ var svg = d3.select("body").append("svg")
   .append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-var form;
+var form; // form element used to submit annotations
 
-var symbols,
-    nametable,
-    timetable,
-    bands;
+var symbols, // the main data set
+    nametable, // array of cost center id to cost center name
+    timetable; // array of tix (time index) to actual time (double)
 
 function cid2name(cid) {
     if (cid == -1) {
@@ -77,9 +84,6 @@ var interactionMode = InteractEnum.SELECT;
 
 var x, y, line, axis, area;
 
-var interpol = "linear"; // "basis"
-var showbands = 10;
-
 //var backend = "http://heap.ezyang.com";
 var backend = "http://heap.ezyang.com";
 
@@ -88,8 +92,6 @@ d3.json(backend + "/view/" + loc, function(heap) {
   symbols = heap.data;
   timetable = heap.timetable;
   nametable = heap.nametable;
-
-  bands = symbols.length;
 
   x = d3.scale.linear()
       .range([0, width - 60]);
