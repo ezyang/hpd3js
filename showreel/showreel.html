@@ -7,6 +7,7 @@ http://bl.ocks.org/1256572
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <script src="http://d3js.org/d3.v2.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>
     <style type="text/css">
 
 svg {
@@ -79,8 +80,11 @@ var x, y, line, axis, area;
 var interpol = "linear"; // "basis"
 var showbands = 10;
 
+//var backend = "http://heap.ezyang.com";
+var backend = "http://localhost:3000";
+
 var loc = window.location.hash ? window.location.hash.substr(1) : "ee0029431bb4cf2941d0444782e7f291000214a6";
-d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
+d3.json(backend + "/view/" + loc, function(heap) {
   symbols = heap.data;
   timetable = heap.timetable;
   nametable = heap.nametable;
@@ -196,6 +200,16 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
         }
       })
       .on("click", function() {
+        function blurit() {
+          interactionMode = InteractEnum.SELECT;
+          markers[i].transition().duration(duration/4)
+            .attr("r", 2)
+            .style("fill", "#000") // dup dup
+            .style("opacity", 0.7); // css-ize me
+          form.transition().duration(duration/4)
+            .style("opacity", 0)
+            .remove();
+        }
         if (interactionMode == InteractEnum.SELECT) {
           var xcoord = calculateTix(d3.mouse(svg.node())[0]);
           interactionMode = InteractEnum.ENTRY;
@@ -203,20 +217,29 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
             .attr("r", 5)
             .style("fill", color(d.cid))
             .style("opacity", 1); // css-ize me
-          form
+          form = svg.append("foreignObject");
+          var input = form.append("xhtml:input");
+          input.attr("type", "text")
+            .on("keyup", function() {
+              if (d3.event.keyCode == 13) { // ENTER
+              $.post(backend + "/annotate/" + loc, {
+                  f2: d.cid,
+                  f3: xcoord,
+                  f4: input.node().value
+                });
+              }
+            });
+            //.on("blur", blurit);
+            // XXX gotta watch out for double-event if you add blur and click
+          form.attr("width", 250).attr("height", "1.5em").style("opacity", 0)
             .attr("x", x(tix2time(xcoord)))
             .attr("y", y(d.values[xcoord].y0 + d.values[xcoord].y))
+            .style("visibility", "visible")
             .transition().duration(duration/4)
             .style("opacity", 1);
           form.select("input").node().focus();
         } else if (interactionMode == InteractEnum.ENTRY) {
-          interactionMode = InteractEnum.SELECT;
-          markers[i].transition().duration(duration/4)
-            .attr("r", 2)
-            .style("fill", "#000") // dup dup
-            .style("opacity", 0.7); // css-ize me
-          form
-            .style("opacity", 0);
+          blurit();
         }
       })
       ;
@@ -255,10 +278,6 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
       .style("stroke-width", "2px")
       .style("opacity", 0.7); // css-ize me
   });
-
-  form = svg.append("foreignObject")
-      .attr("width", 250).attr("height", "1.5em").style("opacity", 0)
-  form.append("xhtml:input").attr("type", "text");
 
   setTimeout(stackedArea, 0);
 
