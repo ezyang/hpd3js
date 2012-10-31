@@ -180,7 +180,7 @@ getAnnotateR hash = do
 postAnnotateR :: Hash -> Handler RepHtml
 postAnnotateR hash = do
     Entity pid _ <- runDB $ getBy404 (UniqueHash hash)
-    ((result, _), _) <- runFormPost (annotateForm hash)
+    ((result, _), _) <- runFormPostNoToken (annotateForm hash) -- XXX temporary no token
     handleForm result $ \(cc, time, text) -> do
     _ <- runDB . insert $ Annotation pid cc time text
     redirect (ViewR hash)

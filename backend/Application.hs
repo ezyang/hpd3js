@@ -12,6 +12,7 @@ import Yesod.Default.Config
 import Yesod.Default.Main
 import Yesod.Default.Handlers
 import Network.Wai.Middleware.RequestLogger (logStdout, logStdoutDev)
+import Network.Wai.Middleware.Gzip (gzip, def)
 import qualified Database.Persist.Store
 import Database.Persist.GenericSql (runMigration)
 import Network.HTTP.Conduit (newManager, def)
@@ -33,7 +34,7 @@ makeApplication :: AppConfig DefaultEnv Extra -> IO Application
 makeApplication conf = do
     foundation <- makeFoundation conf
     app <- toWaiAppPlain foundation
-    return $ logWare app
+    return . gzip def $ logWare app
   where
     logWare   = if development then logStdoutDev
                                else logStdout
