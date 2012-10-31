@@ -137,6 +137,8 @@ var backend = "http://localhost:3000";
 // hack for ease of development
 var loc = window.location.hash ? window.location.hash.substr(1) : "ee0029431bb4cf2941d0444782e7f291000214a6";
 
+var markers = []; // the little circles which track your mouse
+
 function calcCoords(s, tix) {
   return [x(tix2time(tix)), (first ? height : y((s.values[tix].y+s.values[tix].y0)/(currGraph == GraphEnum.NORMALIZED ? aggregate[tix].y : 1)))]
 }
@@ -218,8 +220,6 @@ d3.json(backend + "/view/" + loc, function(heap) {
     .enter().append("g")
       .attr("class", "symbol");
 
-  var markers = [];
-
   g.each(function(s, i) {
     // reverse engineers an SVG relative pixel into a tix
     // XXX move out, but has dependence on x()
@@ -277,6 +277,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
           form.transition().duration(duration/4)
             .style("opacity", 0)
             .remove();
+          form = null;
         }
         if (interactionMode == InteractEnum.SELECT) {
           var xcoord = calculateTix(d3.mouse(svg.node())[0]);
@@ -341,7 +342,19 @@ d3.json(backend + "/view/" + loc, function(heap) {
 
 });
 
+function reset() {
+  interactionMode = InteractEnum.SELECT;
+  markers.forEach(function(x) { x.style("visibility", "hidden"); });
+  if (form) {
+    form.transition().duration(duration/4)
+              .style("opacity", 0)
+              .remove();
+    form = null;
+  }
+}
+
 function stackedArea() {
+  reset();
   var stack = d3.layout.stack()
       .values(function(s) { return s.values; })
       .x(function(d,i) { return tix2time(i); })
@@ -384,7 +397,7 @@ function stackedArea() {
 }
 
 function normalizedStackedArea() {
-
+  reset();
   var stack = d3.layout.stack()
       .values(function(s) { return s.values; })
       .x(function(d,i) { return tix2time(i); })
@@ -418,6 +431,7 @@ function normalizedStackedArea() {
 }
 
 function streamgraph() {
+  reset();
   var stack = d3.layout.stack()
       .values(function(d) { return d.values; })
       .x(function(d,i) { return tix2time(i); })
@@ -457,6 +471,7 @@ function streamgraph() {
 }
 
 function overlappingArea() {
+  reset();
   var g = svg.selectAll(".symbol");
 
   y.domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
