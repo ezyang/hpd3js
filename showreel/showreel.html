@@ -5,6 +5,7 @@ http://bl.ocks.org/1256572
 <!DOCTYPE html>
 <html>
   <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <script src="http://d3js.org/d3.v2.js"></script>
     <style type="text/css">
 
@@ -48,6 +49,8 @@ var svg = d3.select("body").append("svg")
   .append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
+var form;
+
 var symbols,
     nametable,
     timetable,
@@ -64,6 +67,12 @@ function cid2name(cid) {
 function tix2time(tix) {
     return timetable[tix];
 }
+
+var InteractEnum = {
+  SELECT: 0,
+  ENTRY: 1
+}
+var interactionMode = InteractEnum.SELECT;
 
 var x, y, line, axis, area;
 
@@ -141,6 +150,12 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
 
   // f2 f3 f4
   g.each(function(d, i) {
+    function calculateTix(xpixel) {
+      var xinv = x.invert(xpixel);
+      var rightCand = d3.bisectRight(timetable, xinv);
+      var leftCand = rightCand-1;
+      return leftCand < 0 || tix2time(rightCand)-xinv < xinv-tix2time(leftCand) ? rightCand : leftCand;
+    }
     d3.select(this).selectAll(".area")
         .data(d3.range(1))
       .enter().insert("path", ".line")
@@ -154,29 +169,57 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
         //d3.select(d3.event.target).transition()
         //  .style("opacity", 1);
         tooltip.style("visibility", "visible").text(cid2name(d.cid));
-        var mouse = d3.mouse(svg.node());
         if (markers[i]) {
-          markers[i].style("visibility", "visible");
-        };
+          if (interactionMode == InteractEnum.SELECT) {
+            markers[i].style("visibility", "visible");
+          };
+        }
       })
       .on("mousemove", function() {
         tooltip.style("top", (d3.event.pageY-10)+"px")
                       .style("left",(d3.event.pageX+10)+"px");
         if (markers[i]) {
-          var mouse = d3.mouse(svg.node());
-          var xinv = x.invert(mouse[0]);
-          var rightCand = d3.bisectRight(timetable, xinv);
-          var leftCand = rightCand-1;
-          var xcoord = leftCand < 0 || tix2time(rightCand)-xinv < xinv-tix2time(leftCand) ? rightCand : leftCand;
-          markers[i].attr("cx", x(tix2time(xcoord))).attr("cy", y(d.values[xcoord].y0 + d.values[xcoord].y));
-        };
+          if (interactionMode == InteractEnum.SELECT) {
+            var xcoord = calculateTix(d3.mouse(svg.node())[0]);
+            markers[i].attr("cx", x(tix2time(xcoord))).attr("cy", y(d.values[xcoord].y0 + d.values[xcoord].y));
+          };
+        }
       })
       .on("mouseout", function() {
         //d3.select(d3.event.target).transition()
         //  .style("opacity", .6);
         tooltip.style("visibility", "hidden");
-        if (markers[i]) markers[i].style("visibility", "hidden");
-      });
+        if (markers[i]) {
+          if (interactionMode == InteractEnum.SELECT) {
+            markers[i].style("visibility", "hidden");
+          }
+        }
+      })
+      .on("click", function() {
+        if (interactionMode == InteractEnum.SELECT) {
+          var xcoord = calculateTix(d3.mouse(svg.node())[0]);
+          interactionMode = InteractEnum.ENTRY;
+          markers[i].transition().duration(duration/4)
+            .attr("r", 5)
+            .style("fill", color(d.cid))
+            .style("opacity", 1); // css-ize me
+          form
+            .attr("x", x(tix2time(xcoord)))
+            .attr("y", y(d.values[xcoord].y0 + d.values[xcoord].y))
+            .transition().duration(duration/4)
+            .style("opacity", 1);
+          form.select("input").node().focus();
+        } else if (interactionMode == InteractEnum.ENTRY) {
+          interactionMode = InteractEnum.SELECT;
+          markers[i].transition().duration(duration/4)
+            .attr("r", 2)
+            .style("fill", "#000") // dup dup
+            .style("opacity", 0.7); // css-ize me
+          form
+            .style("opacity", 0);
+        }
+      })
+      ;
   });
 
   var g2 = svg.selectAll("g.symbol2")
@@ -192,7 +235,7 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
       .attr("r", 5)
       .style("fill", color(d.cid))
       .style("stroke", "#000")
-      .style("stroke-width", "#2px");
+      .style("stroke-width", "2px");
     m.insert("text")
       .style("background", "#FFF")
       .style("font-size", "12px")
@@ -209,9 +252,13 @@ d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
       .attr("r", 2)
       .style("fill", "#000")
       .style("stroke", "#000")
-      .style("stroke-width", "#2px")
+      .style("stroke-width", "2px")
       .style("opacity", 0.7); // css-ize me
   });
+
+  form = svg.append("foreignObject")
+      .attr("width", 250).attr("height", "1.5em").style("opacity", 0)
+  form.append("xhtml:input").attr("type", "text");
 
   setTimeout(stackedArea, 0);
 
