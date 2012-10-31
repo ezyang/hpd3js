@@ -70,7 +70,7 @@ var interpol = "linear"; // "basis"
 var showbands = 10;
 
 var loc = window.location.hash ? window.location.hash.substr(1) : "ee0029431bb4cf2941d0444782e7f291000214a6";
-d3.json("http://localhost:3000/view/" + loc, function(heap) {
+d3.json("http://heap.ezyang.com/view/" + loc, function(heap) {
   symbols = heap.data;
   timetable = heap.timetable;
   nametable = heap.nametable;
