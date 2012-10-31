@@ -93,6 +93,7 @@ var form; // form element used to submit annotations
 var symbols, // the main data set
     nametable, // array of cid (cost center id) to cost center name
     timetable; // array of tix (time index) to actual time (double)
+var aggregate;
 
 function cid2name(cid) {
     if (cid == -1) {
@@ -106,11 +107,26 @@ function tix2time(tix) {
     return timetable[tix];
 }
 
+// outputs are {y: SUM}
+function sumColumns(matrix) {
+  return d3.transpose(matrix.map(function (s) {
+     return s.values.map(function (d) { return d.y; });
+  })).map(function (x) { return {y: d3.sum(x)}; })
+}
+
 var InteractEnum = {
   SELECT: 0, // we are selecting a data point to annotate
   ENTRY: 1   // we have an active form element for annotation
 }
 var interactionMode = InteractEnum.SELECT;
+
+GraphEnum = {
+  STACKED:0,
+  STREAM:1,
+  OVERLAY:2,
+  NORMALIZED:3
+  }
+var currGraph = GraphEnum.STACKED;
 
 // use these to calculate various parameters regardless of how we've scaled things
 var x, y, line, axis, area;
@@ -122,7 +138,8 @@ var backend = "http://localhost:3000";
 var loc = window.location.hash ? window.location.hash.substr(1) : "ee0029431bb4cf2941d0444782e7f291000214a6";
 
 function standardTranslate(s, d) {
-    return "translate("+x(tix2time(d.tix))+","+(first ? height : y(s.values[d.tix].y+s.values[d.tix].y0))+")";
+  return "translate("+x(tix2time(d.tix))+","+
+    (first ? height : y((s.values[d.tix].y+s.values[d.tix].y0)/(currGraph == GraphEnum.NORMALIZED ? aggregate[d.tix].y : 1)))+")";
 }
 
 d3.json(backend + "/view/" + loc, function(heap) {
@@ -165,9 +182,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
     // XXX saving annotations for other don't really work
     var s = {
            cid: -1,
-           values: d3.transpose(symbols.map(function (s) {
-                       return s.values.map(function (d) { return d.y; });
-                    })).map(function (x) { return {y: d3.sum(x)}; }),
+           values: sumColumns(symbols),
            annotations: []
     };
     s.maxUsage = d3.max(s.values, function(d) { return d.y; });
@@ -177,6 +192,8 @@ d3.json(backend + "/view/" + loc, function(heap) {
   symbols = high;
   // other might be a big band, so re-sort!
   symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
+
+  aggregate = sumColumns(symbols);
 
   // function because we can add new annotations on response to user input
   function doAnnotations(el, s) {
@@ -199,7 +216,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
 
   var markers = [];
 
-  g.each(function(d, i) {
+  g.each(function(s, i) {
     // reverse engineers an SVG relative pixel into a tix
     // XXX move out, but has dependence on x()
     function calculateTix(xpixel) {
@@ -212,14 +229,14 @@ d3.json(backend + "/view/" + loc, function(heap) {
         .data(d3.range(1))
       .enter().insert("path", ".line")
         .attr("class", "area")
-        .style("fill", color(d.cid))
-        .attr("d", function(irrelevant) { return area(d.values); })
+        .style("fill", color(s.cid))
+        .attr("d", function(irrelevant) { return area(s.values); })
       .on("mouseover", function() {
         // D3 doesn't support concurrent disjoint transitions on the same
         // elements, so this causes visual artifacts. Disabled.
         //d3.select(d3.event.target).transition()
         //  .style("opacity", 1);
-        tooltip.style("visibility", "visible").text(cid2name(d.cid));
+        tooltip.style("visibility", "visible").text(cid2name(s.cid));
         if (markers[i]) {
           if (interactionMode == InteractEnum.SELECT) {
             markers[i].style("visibility", "visible");
@@ -232,7 +249,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
         if (markers[i]) {
           if (interactionMode == InteractEnum.SELECT) {
             var xcoord = calculateTix(d3.mouse(svg.node())[0]);
-            markers[i].attr("cx", x(tix2time(xcoord))).attr("cy", y(d.values[xcoord].y0 + d.values[xcoord].y));
+            markers[i].attr("cx", x(tix2time(xcoord))).attr("cy", y(s.values[xcoord].y0 + s.values[xcoord].y));
           };
         }
       })
@@ -262,7 +279,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
           interactionMode = InteractEnum.ENTRY;
           markers[i].transition().duration(duration/4)
             .attr("r", annotCircleR)
-            .style("fill", color(d.cid))
+            .style("fill", color(s.cid))
             .style("opacity", 1);
           form = svg.append("foreignObject");
           var input = form.append("xhtml:input");
@@ -271,14 +288,14 @@ d3.json(backend + "/view/" + loc, function(heap) {
               if (d3.event.keyCode == 13) { // ENTER
               var text = input.node().value;
               $.post(backend + "/annotate/" + loc, {
-                  f2: d.cid,
+                  f2: s.cid,
                   f3: xcoord,
                   f4: text
                   }, function() {
                     blurit();
-                    d.annotations.push({tix: xcoord, text: text });
+                    s.annotations.push({tix: xcoord, text: text });
                     // XXX blah
-                    doAnnotations(svg.selectAll("g.symbol2").filter(function (x,j) { return i == j; }).node(), d);
+                    doAnnotations(svg.selectAll("g.symbol2").filter(function (x,j) { return i == j; }).node(), s);
                   });
               }
             });
@@ -315,15 +332,9 @@ d3.json(backend + "/view/" + loc, function(heap) {
       .style("opacity", 0.7); // css-ize me
   });
 
-  setTimeout(stackedArea, 0);
+  setTimeout(function () { stackedArea(); first = false; }, 0);
 
 });
-GraphEnum = {
-	STACKED:0,
-	STREAM:1,
-	OVERLAY:2
-	}	
-var currGraph = GraphEnum.STACKED;
 
 function stackedArea() {
   var stack = d3.layout.stack()
@@ -335,9 +346,7 @@ function stackedArea() {
 
   stack(symbols);
 
-  // This initializes it; if you start with a non stack view you need to do something here!
-  y
-      .domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
+  y.domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
 
   line
       .y(function(d) { return y(d.y0); });
@@ -355,7 +364,7 @@ function stackedArea() {
   }
   var easeOver = showbands * 150;
 
-  var delayFun = function(d, i) { return (first||currGraph==GraphEnum.STREAM) ? 0 : easeOver * easing(i/showbands); };
+  var delayFun = function(d, i) { return (first||currGraph!=GraphEnum.OVERLAY) ? 0 : easeOver * easing(i/showbands); };
 
   t.select("path.area")
     .delay(delayFun)
@@ -367,7 +376,40 @@ function stackedArea() {
       .attr("transform", function(d) { return standardTranslate(s, d); });
   });
   currGraph = GraphEnum.STACKED;
-  first = false;
+}
+
+function normalizedStackedArea() {
+
+  var stack = d3.layout.stack()
+      .values(function(s) { return s.values; })
+      .x(function(d,i) { return tix2time(i); })
+      .y(function(d,i) { return d.y; })
+      .out(function(d, y0, y) { d.y0 = y0; })
+      .order("reverse");
+
+  stack(symbols);
+
+  y
+      .domain([0, 1])
+
+  line
+      .y(function(d,i) { return y(d.y0/aggregate[i].y); });
+
+  area
+      .y0(function(d,i) { return y(d.y0/aggregate[i].y); })
+      .y1(function(d,i) { return y((d.y0 + d.y)/aggregate[i].y); });
+
+  var t = svg.selectAll(".symbol").transition()
+        .duration(duration/2);
+
+  currGraph = GraphEnum.NORMALIZED;
+  t.select("path.area")
+    .style("fill-opacity", 1)
+    .attr("d", function(d) { return area(d.values); });
+  svg.selectAll(".symbol2").each(function(s,i) {
+    d3.select(this).selectAll("g.annot").transition().duration(duration/2)
+    .attr("transform", function(d) { return standardTranslate(s,d) });
+  });
 }
 
 function streamgraph() {
@@ -380,6 +422,8 @@ function streamgraph() {
       .offset("wiggle");
 
   stack(symbols);
+
+  y.domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
 
   line
       .y(function(d) { return y(d.y0); });
@@ -409,6 +453,8 @@ function streamgraph() {
 
 function overlappingArea() {
   var g = svg.selectAll(".symbol");
+
+  y.domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
 
   symbols.forEach(function(s) {
       s.values.forEach(function(d) {d.y0 = 0;});
@@ -458,13 +504,10 @@ function overlappingArea() {
   currGraph = GraphEnum.OVERLAY;
 }
 
-function annotate() {
-A = document.annotationForm.annotation.value
-}
-
     </script>
-    <button id="stream" title="Toggle between streamgraph, stackgraph or overlay chart" onclick="streamgraph()">Stream Graph</button>
-    <button id="stack" title="Toggle between streamgraph, stackgraph or overlay chart" onclick="stackedArea()">Stacked Graph</button>
-    <button id="overlay" title="Toggle between streamgraph, stackgraph or overlay chart" onclick="overlappingArea()">Overlayed area Graph</button></br>
+    <button id="stream" onclick="streamgraph()">Stream Graph</button>
+    <button id="stack" onclick="stackedArea()">Stacked Graph</button>
+    <button id="normalized" onclick="normalizedStackedArea()">Normalized Stacked Graph</button>
+    <button id="overlay" onclick="overlappingArea()">Overlayed area Graph</button></br>
   </body>
 </html>
