@@ -10,9 +10,12 @@ import Control.Exception (evaluate)
 
 import qualified Data.IntMap as IntMap
 import Data.IntMap (IntMap)
+-- XXX not strict; when we get late enough containers switch to Strict
+import qualified Data.Map as Map
 import Data.List (foldl')
 import Data.Time
 import Data.String
+import Data.Function
 import qualified Data.Text.Encoding as Text
 import qualified Data.ByteString.Base16 as Base16
 import qualified Data.Text as Text
@@ -50,12 +53,15 @@ getHomeR = do
 
 getViewR :: Hash -> Handler RepHtmlJson
 getViewR hash = do
-    Entity _ profile <- runDB $ getBy404 (UniqueHash hash)
+    Entity pid profile <- runDB $ getBy404 (UniqueHash hash)
+    annotations <- runDB $ selectList [ProfileAnnotationProfileId ==. pid] [Asc ProfileAnnotationCostCenter]
     let path     = "static" </> uploadDirectory </> Text.unpack (unHash hash)
         lpath    = StaticR (StaticRoute [uploadDirectory, unHash hash] [])
         -- Iframe is temporary hack before we merge the two codebases
         showreel = "http://ezyang.github.com/hpd3js/showreel/showreel.html#" ++ Text.unpack (unHash hash)
-        html = do
+        sliceAnnot (Entity _ a) = (profileAnnotationCostCenter a, Map.singleton (profileAnnotationTime a) (profileAnnotationText a))
+        annotMap = IntMap.fromAscListWith Map.union (map sliceAnnot annotations)
+    let html = do
             setTitle . toHtml $ profileTitle profile
             [whamlet|
                      <h1>
