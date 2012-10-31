@@ -203,9 +203,10 @@ d3.json(backend + "/view/" + loc, function(heap) {
 
   // function because we can add new annotations on response to user input
   function doAnnotations(el, s) {
-    var m = d3.select(el).selectAll(".annot")
-      .data(s.annotations).enter()
-      .insert("g").attr("class", "annot")
+    var p = d3.select(el).selectAll(".annot")
+      .data(s.annotations);
+    p.exit().remove();
+    var m = p.enter().insert("g").attr("class", "annot")
       .attr("transform", function(d) { return standardTranslate(s, d); });
     m.insert("circle")
       .attr("r", annotCircleR)
@@ -265,12 +266,12 @@ d3.json(backend + "/view/" + loc, function(heap) {
         var mouseinfo = d3.mouse(svg.node())[0];
         function blurit() {
           if (interactionMode != InteractEnum.SELECT) {
-            interactionMode = InteractEnum.SELECT;
-            marker.transition().duration(duration/4)
+            marker.transition().duration(duration/8)
               .attr("r", annotCircleUnfocusR)
               .style("fill", "#000")
               .style("opacity", 0.7);
-            form.transition().duration(duration/4)
+            interactionMode = InteractEnum.SELECT;
+            form.transition().duration(duration/8)
               .style("opacity", 0)
               .remove();
             form = null;
@@ -287,6 +288,14 @@ d3.json(backend + "/view/" + loc, function(heap) {
             .attr("cx", r[0]).attr("cy", r[1]);
           form = svg.append("foreignObject");
           var input = form.append("xhtml:input");
+          var theannot = s.annotations.filter(function(a) {return a.tix == xcoord});
+          // XXX blah
+          var actualnode = svg.selectAll("g.symbol2").filter(function (x,j) { return i == j; }).node();
+          if (theannot.length) {
+            //s.annotations.splice(s.annotations.indexOf(theannot[0]), 1); // XXX lol
+            input.node().value = theannot[0].text;
+            //doAnnotations(actualnode, s);
+          }
           input.attr("type", "text")
             .on("keyup", function() {
               if (d3.event.keyCode == 13) { // ENTER
@@ -298,12 +307,11 @@ d3.json(backend + "/view/" + loc, function(heap) {
                   }, function() {
                     blurit();
                     s.annotations.push({tix: xcoord, text: text });
-                    // XXX blah
-                    doAnnotations(svg.selectAll("g.symbol2").filter(function (x,j) { return i == j; }).node(), s);
+                    doAnnotations(actualnode, s);
                   });
               }
             })
-            .on("blur", blurit);
+            .on("blur", function() { setTimeout(blurit, 200); }); // force it to run after
             // XXX gotta watch out for double-event if you add blur and click
           var r = calcCoords(s, xcoord);
           form.attr("width", 250).attr("height", "1.5em").style("opacity", 0)
