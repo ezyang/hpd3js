@@ -136,11 +136,12 @@ var pie;      // pie chart on bottom right
 //     , annotations :: [{tix :: Tix, text :: String}]
 //     }
 
-var symbols,   // :: [Series] -- index is NOT Cid
+var symbols,   // :: [Series] -- index is Cid
     nametable, // :: [String] -- index is Cid
     timetable; // :: [Double] -- index is Tix
 
-var others;    // :: [Series]
+var slim,      // :: [Series] -- index is NOT Cid
+    others;    // :: [Series] -- ditto
 
 var aggregate; // :: [{y :: Int}]
 
@@ -295,43 +296,43 @@ function updateMarker(md) {
     .style("fill",         md.st == MarkerEnum.FOCUSED ? d3.hsl(color(md.s.cid)).darker() : "#000");
 }
 
-/*
-function updateForm(enabled) {
+function updateForm(fi) {
   // JOIN
-  var annotForm = svg.selectAll(".annotForm").data(enabled ? d3.range(1) : d3.range(0));
-  annotForm.enter()
-
-          form = svg.append("foreignObject");
-          var input = form.append("xhtml:input");
-          var theannot = s.annotations.filter(function(a) {return a.tix == xcoord});
-          // XXX blah
-          var actualnode = svg.selectAll("g.symbol2").filter(function (x,j) { return i == j; }).node();
-          if (theannot.length) {
-            input.node().value = theannot[0].text;
+  var annotForm = svg.selectAll(".annotForm").data(fi ? d3.range(1) : d3.range(0));
+  annotForm.enter().append("foreignObject")
+    .call(function(fo) {
+      var input = fo.append("xhtml:input");
+      var old = fi.s.annotations.filter(function(a) {return a.tix == fi.tix});
+      if (old.length) { // XXX there should only be one
+        input.node().value = old[0].text;
+      }
+      input.attr("type", "text")
+        .on("keyup", function() {
+          if (d3.event.keyCode == 13) { // ENTER
+            var text = input.node().value;
+            $.post(backend + "/annotate/" + loc, {
+              f2: s.cid,
+              f3: xcoord,
+              f4: text
+              }, function() {
+                blurit();
+                var done = false;
+                s.annotations.forEach(function(a) {
+                  if (a.tix == xcoord) {
+                    a.text = text;
+                    done = true;
+                  }
+                });
+                if (!done) s.annotations.push({tix: xcoord, text: text });
+                // XXX blah
+                var actualnode = svg.selectAll("g.symbol2").filter(function (x,j) { return i == j; }).node();
+                updateAnnotations(actualnode, s, s.annotations);
+              });
           }
-          input.attr("type", "text")
-            .on("keyup", function() {
-              if (d3.event.keyCode == 13) { // ENTER
-              var text = input.node().value;
-              $.post(backend + "/annotate/" + loc, {
-                  f2: s.cid,
-                  f3: xcoord,
-                  f4: text
-                  }, function() {
-                    blurit();
-                    var done = false;
-                    s.annotations.forEach(function(a) {
-                      if (a.tix == xcoord) {
-                        a.text = text;
-                        done = true;
-                      }
-                    });
-                    if (!done) s.annotations.push({tix: xcoord, text: text });
-                    updateAnnotations(actualnode, s, s.annotations);
-                  });
-              }
-            })
-            .on("blur", function() { setTimeout(blurit, 200); }); // force it to run after
+        })
+        .on("blur", function() { setTimeout(blurit, 200); }); // force it to run after
+    });
+
           var r = calcCoords(s, xcoord);
           form.attr("width", 250).attr("height", "1.5em").style("opacity", 0)
             .attr("x", r[0]).attr("y", r[1])
@@ -340,7 +341,6 @@ function updateForm(enabled) {
             .style("opacity", 1);
           form.select("input").node().focus();
 }
-*/
 
 function updateAreas(symbols) {
   // JOIN
@@ -459,37 +459,41 @@ d3.json(backend + "/view/" + loc, function(heap) {
     s.maxUsage = d3.max(s.values, function(d) { return d.y; });
     s.sumUsage = d3.sum(s.values, function(d) { return d.y; });
   });
-  symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
+
+  slim = symbols.slice(0);
+  slim.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 
   // we can't render everything, so split it up
-  var high = symbols.splice(0, showbands - 1);
-  if (symbols.length) {
+  var high = slim.splice(0, showbands - 1);
+  if (slim.length) {
     var s = {
       cid: -1,
-      values: sumColumns(symbols),
+      values: sumColumns(slim),
       annotations: []
     };
     s.maxUsage = d3.max(s.values, function(d) { return d.y; });
     s.sumUsage = d3.sum(s.values, function(d) { return d.y; });
     high.push(s);
   }
-  others = symbols; // save 'em up
-  symbols = high;
+  others = slim; // save 'em up
+  slim = high;
   // other might be a big band, so re-sort!
-  // XXX more efficient to just bisect it in?
-  symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
+  slim.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
+
+  // symbols is the original data, slice is the new data; probably
+  // this computation needs to be factored out...
 
   // aggregate counts for pie chart
-  aggregate = sumColumns(symbols); // XXX eliminate me
+  aggregate = sumColumns(slim); // XXX eliminate me
 
 // ----------------------------------------------------------------------------
 // Build some stuff
 
-  updateAreas(symbols);
+  updateAreas(slim);
 
   // annotations layer
   var g2 = svg.selectAll("g.symbol2")
-     .data(symbols)
+     .data(slim)
      .enter().append("g").attr("class", "symbol2")
      .each(function (s) { updateAnnotations(this, s, s.annotations); });
 
@@ -497,7 +501,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
   var legend = svg.append("g")
     .attr("transform", "translate(" + (width + 20) + "," + margin.top + ")");
   rows = legend.selectAll("g.legendrow")
-    .data(symbols)
+    .data(slim)
     .enter().append("g")
     .attr("class", "legendrow")
     .attr("transform", function (s,i) { return "translate(0, "+ (i * 22) +")" });
@@ -545,7 +549,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
   var pielayout = d3.layout.pie().value(function(s) {return s.sumUsage;}).sort(null);
   var arc = d3.svg.arc().innerRadius(margin.right/2-50).outerRadius(margin.right/2-10);
   var piechart = pie.selectAll("path")
-    .data(pielayout(symbols))
+    .data(pielayout(slim))
     .enter().append("path")
     .attr("fill", function(s) {return color(s.data.cid)})
     .attr("class", "arc")
@@ -628,7 +632,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
         svg.selectAll(".talisman").data(bounds).call(postalisman);
         svg.selectAll(".leyline").data(bounds).call(posleyline);
         //pielayout.value(function(s) {return d3.sum()});
-        piechart = piechart.data(pielayout(symbols.map(function (s) {return {cid: s.cid, sumUsage: d3.sum(s.values.slice(bounds[0], bounds[1]+1), function(d) {return d.y})}})));
+        piechart = piechart.data(pielayout(slim.map(function (s) {return {cid: s.cid, sumUsage: d3.sum(s.values.slice(bounds[0], bounds[1]+1), function(d) {return d.y})}})));
         piechart.transition().duration(50).attrTween("d", arcTween);
       }));
 
@@ -680,9 +684,9 @@ function stackedArea() {
       .out(function(d, y0, y) { d.y0 = y0; })
       .order("reverse");
 
-  stack(symbols);
+  stack(slim);
 
-  y.domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
+  y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y + d.y0; }))])
   yaxisbox.call(yaxis);
 
   line
@@ -723,7 +727,7 @@ function normalizedStackedArea() {
       .out(function(d, y0, y) { d.y0 = y0; })
       .order("reverse");
 
-  stack(symbols);
+  stack(slim);
 
   y
       .domain([0, 1]);
@@ -759,9 +763,9 @@ function streamgraph() {
       .order("reverse")
       .offset("wiggle");
 
-  stack(symbols);
+  stack(slim);
 
-  y.domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
+  y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y + d.y0; }))])
   yaxisbox.call(yaxis);
 
   line
@@ -794,10 +798,10 @@ function overlappingArea() {
   reset();
   var g = svg.selectAll(".symbol");
 
-  y.domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
+  y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y + d.y0; }))])
   yaxisbox.call(yaxis);
 
-  symbols.forEach(function(s) {
+  slim.forEach(function(s) {
       s.values.forEach(function(d) {d.y0 = 0;});
   });
 
@@ -849,10 +853,10 @@ function lineGraph() {
   reset();
   var g = svg.selectAll(".symbol");
 
-  y.domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
+  y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y + d.y0; }))])
   yaxisbox.call(yaxis);
 
-  symbols.forEach(function(s) {
+  slim.forEach(function(s) {
       s.values.forEach(function(d) {d.y0 = 0;});
   });
 
