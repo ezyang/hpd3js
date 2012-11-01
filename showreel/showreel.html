@@ -474,7 +474,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
 
   // pie chart
   pie = svg.append("g")
-    .attr("transform", "translate("+(width+margin.left+50)+","+(margin.top+margin.bottom+height-margin.right/2-50)+")");
+    .attr("transform", "translate("+(width+margin.left+57)+","+(margin.top+margin.bottom+height-margin.right/2-50)+")");
   var pielayout = d3.layout.pie().value(function(s) {return s.sumUsage;}).sort(null);
   var arc = d3.svg.arc().innerRadius(margin.right/2-50).outerRadius(margin.right/2-10);
   pie.selectAll("path")
