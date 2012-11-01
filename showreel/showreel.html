@@ -48,19 +48,14 @@ svg {
   opacity: 1;
 }
 
-.xaxis {
+.axis {
   font-size:12px;
 }
 
-.xaxis path {
+.axis path, .axis line {
   fill: none;
   stroke: #000;
-  stroke-width: 2px;
-}
-
-.xaxis .tick {
-  stroke: #000;
-  stroke-width: 2px;
+  shape-rendering: crispEdges;
 }
 
     </style>
@@ -84,7 +79,7 @@ var tooltip = d3.select("body")
     .attr("class", "tooltip")
     .style("visibility", "hidden");
 
-var margin = {top: 10, right: 200, bottom: 25, left: 0},
+var margin = {top: 10, right: 200, bottom: 25, left: 50},
     width = 800 - margin.right - margin.left,
     height = 520 - margin.top - margin.bottom;
 
@@ -144,7 +139,7 @@ GraphEnum = {
 var currGraph = GraphEnum.STACKED;
 
 // use these to calculate various parameters regardless of how we've scaled things
-var x, y, line, axis, area;
+var x, y, line, xaxis, yaxis, area;
 
 //var backend = "http://heap.ezyang.com";
 var backend = "http://localhost:3000";
@@ -163,6 +158,8 @@ function standardTranslate(s, d) {
   return "translate("+r[0]+","+r[1]+")";
 }
 
+var yaxisbox;
+
 d3.json(backend + "/view/" + loc, function(heap) {
   symbols = heap.data;
   timetable = heap.timetable;
@@ -171,7 +168,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
   // domains are data dependent, calculated later
   x = d3.scale.linear().range([0, width])
                        .domain([tix2time(0), tix2time(timetable.length-1)]); // XXX modify me if we do vertical scrub
-  y = d3.scale.linear().range([height, 0]);
+  y = d3.scale.linear().range([height, 0]).domain([0,0]);
 
   // A line generator, for the dark stroke.
   line = d3.svg.line()
@@ -180,9 +177,23 @@ d3.json(backend + "/view/" + loc, function(heap) {
       .y(function(d) { return y(d.y); });
 
   // An axis generator, for the dark stroke.
-  axis = d3.svg.axis()
+  xaxis = d3.svg.axis()
   .scale(x)
   .orient("bottom");
+
+  svg.append("g")
+    .attr("transform", "translate(0,"+height+")")
+    .attr("class", "axis")
+    .call(xaxis);
+
+  yaxis = d3.svg.axis()
+    .scale(y)
+    .tickFormat(d3.format("s"))
+    .orient("left");
+
+  yaxisbox = svg.append("g")
+    .attr("class", "axis")
+    .call(yaxis);
 
   // A area generator, for the dark stroke.
   area = d3.svg.area()
@@ -229,11 +240,6 @@ d3.json(backend + "/view/" + loc, function(heap) {
       .attr("transform", function() { return "translate(9,5)" }) // slight offset
       .text(function (a) { return a.text; });
   }
-
-  svg.append("g")
-    .attr("transform", "translate(0,"+height+")")
-    .attr("class", "xaxis")
-    .call(axis);
 
   var g = svg.selectAll("g.symbol")
       .data(symbols)
@@ -405,6 +411,7 @@ function stackedArea() {
   stack(symbols);
 
   y.domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
+  yaxisbox.call(yaxis);
 
   line
       .y(function(d) { return y(d.y0); });
@@ -415,7 +422,6 @@ function stackedArea() {
 
   var t = svg.selectAll(".symbol").transition()
         .duration(duration/2);
-
 
   var easing = function (t) {
       return 1 - (1-t)*(1-t)*(1-t);
@@ -448,7 +454,8 @@ function normalizedStackedArea() {
   stack(symbols);
 
   y
-      .domain([0, 1])
+      .domain([0, 1]);
+  yaxisbox.call(d3.svg.axis().orient("left").tickFormat(d3.format("%")).scale(y));
 
   line
       .y(function(d,i) { return y(d.y0/aggregate[i].y); });
@@ -483,6 +490,7 @@ function streamgraph() {
   stack(symbols);
 
   y.domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
+  yaxisbox.call(yaxis);
 
   line
       .y(function(d) { return y(d.y0); });
@@ -515,6 +523,7 @@ function overlappingArea() {
   var g = svg.selectAll(".symbol");
 
   y.domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
+  yaxisbox.call(yaxis);
 
   symbols.forEach(function(s) {
       s.values.forEach(function(d) {d.y0 = 0;});
