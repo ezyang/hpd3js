@@ -151,6 +151,7 @@ var aggregate; // :: [{y :: Int}]
 
 var first = true; // first render animates differently
 var dragging = false;
+var singleband = false;
 var InteractEnum = {
   SELECT: 0, // we are selecting a data point to annotate
   ENTRY: 1  // we have an active form element for annotation
@@ -217,9 +218,11 @@ function standardTranslate(s, d) {
 // mouseoverBand :: Cid -> IO ()
 function mouseoverBand(cid) {
   if (dragging) return;
-  namefield.text(cid2name(cid))
-  namebox.style("fill", color(cid))
-    .style("opacity", 0.6);
+  if (!singleband) {
+    namefield.text(cid2name(cid))
+    namebox.style("fill", color(cid))
+      .style("opacity", 0.6);
+  }
   svg.selectAll(".legendrow .bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
   svg.selectAll(".legendrow .fgbox").filter(function(s) {return s.cid == cid}).style("opacity", 1.0);
   svg.selectAll(".pie").filter(function(s) {return s.data.cid == cid}).style("opacity", 1);
@@ -229,8 +232,10 @@ function mouseoverBand(cid) {
 // mouseoutBand :: Cid -> IO ()
 function mouseoutBand(cid) {
   if (dragging) return;
-  namefield.text("")
-  namebox.style("opacity", 0);
+  if (!singleband) {
+    namefield.text("")
+    namebox.style("opacity", 0);
+  }
   svg.selectAll(".legendrow .bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0);
   svg.selectAll(".legendrow .fgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
   svg.selectAll(".pie").filter(function(s) {return s.data.cid == cid}).style("opacity", 0.6);
@@ -430,7 +435,7 @@ function updateAreas(symbols, cid) {
       .attr("d", function(s) { return area(s.values); })
 }
 
-function updateLegend(symbols, cid) {
+function updateLegend(symbols, dur) {
   // JOIN
   var legendrow = svg.selectAll(".legendrow").data(symbols, function(s) {return s.cid});
   legendrow.enter().append("g")
@@ -458,9 +463,13 @@ function updateLegend(symbols, cid) {
         })
         .on("click", function() {
           slim = [s];
+          singleband = true;
+          namefield.text(cid2name(s.cid))
+          namebox.style("fill", color(s.cid))
+            .style("opacity", 0.6);
           updateAreas(slim);
           updateAnnotations(slim);
-          updateLegend(slim);
+          updateLegend(slim, duration);
           updatePie(slim, duration);
           stackedArea();
         })
@@ -468,18 +477,21 @@ function updateLegend(symbols, cid) {
     });
   // UPDATE
   legendrow
+    .transition()
+    .duration(dur/2)
+    .delay(dur/2)
     .attr("transform", function (s,i) { return "translate(" + (width + 20) + ", "+ (margin.top + i * 22) +")" });
   legendrow.selectAll(".bgbox")
     .style("fill", function(s) { return color(s.cid) })
-    .style("opacity", function(s) { return s.cid == cid ? 0.6 : 0 });
+    .style("opacity", 0);
   legendrow.selectAll(".fgbox")
     .style("fill", function (s) { return color(s.cid) })
-    .style("opacity", function (s) { return s.cid == cid ? 1 : 0.6 });
+    .style("opacity", 0.6);
   // EXIT
-  legendrow.exit().transition().duration(duration).style("opacity", 0).remove();
+  legendrow.exit().transition().duration(duration/2).style("opacity", 0).remove();
 }
 
-function updatePie(symbols, duration) {
+function updatePie(symbols, dur) {
   var pielayout = d3.layout.pie().value(function(s) {return s.sumUsage;}).sort(null);
   var inr  = margin.right/2-50;
   var outr = margin.right/2-10;
@@ -500,9 +512,9 @@ function updatePie(symbols, duration) {
   // UPDATE
   pie
     .style("opacity", 0.6)
-    .transition().duration(duration).attrTween("d", arcTween);
+    .transition().duration(dur/2).delay(dur/2).attrTween("d", arcTween);
   // EXIT
-  pie.exit().transition().duration(duration/2).attrTween("d", arcOut).style("opacity", 0).remove();
+  pie.exit().transition().duration(dur/2).attrTween("d", arcOut).style("opacity", 0).remove();
 
   function arcTween(a) {
     var i = d3.interpolate(this._current, a);
@@ -582,7 +594,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
   // Order is important!
   updateAreas(slim);
   updateAnnotations(slim);
-  updateLegend(slim);
+  updateLegend(slim, 0);
   updatePie(slim);
 
   // some axes
