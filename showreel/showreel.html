@@ -279,7 +279,7 @@ function updateAnnotations(symbols) {
   annotBand.each(function (s,i) {
     // JOIN
     var annot = d3.select(this).selectAll(".annot").data(s.annotations);
-    annot.enter().append("g")
+    annot.enter().insert("g", ":first-child")
       .attr("class", "annot")
       .attr("transform", function(d) { return standardTranslate(s, d); }) // XXX bleh, shouldn't be necessary
       .call(function (g) {
@@ -322,7 +322,7 @@ function updateMarker(md) {
     md.y = r[1];
   }
   var marker = svg.selectAll(".marker").data(d3.range(1));
-  marker.enter().insert("circle")
+  marker.enter().append("circle")
     .attr("class", "marker")
     .style("stroke", "#000");
   // UPDATE
@@ -408,15 +408,17 @@ function animateIncremental() {
 
 function updateAreas(symbols, cid) {
   // JOIN
-  var symbol = svg.selectAll(".symbol").data(symbols, function(s) {return s.cid});
-  symbol.enter().append("g")
+  var g = svg.selectAll(".symbolbox").data(d3.range(1));
+  g.enter().insert("g").attr("class", "symbolbox")
+  var symbol = g.selectAll(".symbol").data(symbols, function(s) {return s.cid});
+  symbol.enter().insert("g")
     .attr("class", "symbol")
   symbol.exit().remove();
   // UPDATE
   symbol.each(function(s, i) {
     // JOIN (boring)
     var band = d3.select(this).selectAll(".band").data(d3.range(1));
-    band.enter().insert("path", ".line") // we want small areas to render on TOP
+    band.enter().append("path") // we want small areas to render on TOP
       .attr("class", "band")
       .style("fill", color(s.cid))
       .on("mouseover", function() {
@@ -455,7 +457,7 @@ function updateAreas(symbols, cid) {
 function updateLegend(symbols, dur) {
   // JOIN
   var legendrow = svg.selectAll(".legendrow").data(symbols, function(s) {return s.cid});
-  legendrow.enter().append("g")
+  legendrow.enter().insert("g")
     .attr("class", "legendrow")
     .attr("transform", function (s,i) { return "translate(" + (width + 20) + ", "+ 0 +")" })
     .style("opacity", 0)
@@ -525,7 +527,7 @@ function updatePie(symbols, dur) {
   // JOIN
   var pie = svg.selectAll(".pie")
     .data(pielayout(symbols), function(s) {return s.data.cid});
-  pie.enter().append("path")
+  pie.enter().insert("path")
     .attr("class", "pie")
     .attr("fill", function(s) {return color(s.data.cid)})
     .attr("transform", "translate("+(width+margin.left+57)+","+(margin.top+margin.bottom+height-margin.right/2-50)+")")
