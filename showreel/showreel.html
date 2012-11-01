@@ -58,23 +58,25 @@ svg {
   <body>
     <script type="text/javascript">
 
-      /*
-         known bugs:
-          - click on annotation dot should trigger textbox
-          - delete annotation by clearing ocntents
-          - axes sometimes don't render properly on refresh
-         */
-
-// some parameters
-
-var interpol = "linear"; // "basis" will cause problems with annotation placement
-var showbands = 10; // how many bands to show (the last band will be "OTHER")
+/*
+ known bugs:
+  - click on annotation dot should trigger textbox
+  - delete annotation by clearing contents
+  - annotation edits don't work
+  - axes sometimes don't render properly on refresh
+ */
 
 // variable naming convention:
 //    s = sequence (e.g. the entire "line" for a cost center)
 //    d = data point (a particular (time, usage) point for a cost center)
 //    a = annotation point
 //    i,j,k = indexes
+
+// ----------------------------------------------------------------------------
+// some parameters
+
+var interpol = "linear"; // "basis" will cause problems with annotation placement
+var showbands = 10; // how many bands to show (the last band will be "OTHER")
 
 var margin = {top: 30, right: 200, bottom: 25, left: 50},
     width = 800 - margin.right - margin.left,
@@ -88,6 +90,10 @@ var annotCircleUnfocusR = 2;
 
 var color = d3.scale.category10();
 
+// ----------------------------------------------------------------------------
+// global widgets which are independent of data
+//    and forward declarations for elements that will be defined later
+
 var svg = d3.select("body").append("svg")
     .attr("width", width + margin.right + margin.left)
     .attr("height", height + margin.top + margin.bottom)
@@ -97,7 +103,6 @@ var svg = d3.select("body").append("svg")
 var namegroup = svg.append("g");
 
 var namebox = namegroup.append("rect")
-  //.attr("transform", "translate(0,)")
   .attr("transform", "translate(0,-24)")
   .attr("class", "namebox")
   .style("opacity", 0)
@@ -107,46 +112,49 @@ var namefield = namegroup.append("text")
   .attr("transform", "translate(2,-10)")
   .attr("class", "namefield");
 
-var first = true;
-var form; // form element used to submit annotations
+var form;     // form element used to submit annotations
+var marker;   // the little circle which tracks your mouse and is where an annotation will go
+var yaxisbox; // box which contains the y-axis (needs to change)
+var rows;     // rows of the legend on the right
+var pie;      // pie chart on bottom right
 
-var symbols, // the main data set
-    nametable, // array of cid (cost center id) to cost center name
-    timetable; // array of tix (time index) to actual time (double)
-var aggregate;
+// ----------------------------------------------------------------------------
+// The data types
 
-function cid2name(cid) {
-    if (cid == -1) {
-        return "OTHER";
-    } else {
-        return nametable[cid];
-    }
-}
+// Haskell style type signatures for extensions for known-length lists
+// [t1, t2 ...] and objects {f1 :: t1, f2 :: t2}; also we write in curried style.
 
-function tix2time(tix) {
-    return timetable[tix];
-}
+// type Cid = Int
+// type Tix = Int
+// type Datapoint = {y :: Int}
+// type Series =
+//     { cid         :: Cid
+//     , values      :: [Datapoint] -- index is Tix
+//     , annotations :: [{tix :: Tix, text :: String}]
+//     }
 
-// outputs are {y: SUM}
-function sumColumns(matrix) {
-  return d3.transpose(matrix.map(function (s) {
-     return s.values.map(function (d) { return d.y; });
-  })).map(function (x) { return {y: d3.sum(x)}; })
-}
+var symbols,   // :: [Series] -- index is NOT Cid
+    nametable, // :: [String] -- index is Cid
+    timetable; // :: [Double] -- index is Tix
 
+var aggregate; // :: [{y :: Int}]
+
+// ----------------------------------------------------------------------------
+// Application modes
+
+var first = true; // first render animates differently
 var InteractEnum = {
   SELECT: 0, // we are selecting a data point to annotate
   ENTRY: 1   // we have an active form element for annotation
 }
-var interactionMode = InteractEnum.SELECT;
-
-GraphEnum = {
+var GraphEnum = {
   STACKED:0,
   STREAM:1,
   OVERLAY:2,
   NORMALIZED:3,
   LINE:4
   }
+var interactionMode = InteractEnum.SELECT;
 var currGraph = GraphEnum.STACKED;
 
 // use these to calculate various parameters regardless of how we've scaled things
@@ -158,17 +166,43 @@ var backend = "http://heap.ezyang.com";
 // hack for ease of development
 var loc = window.location.hash ? window.location.hash.substr(1) : "ee0029431bb4cf2941d0444782e7f291000214a6";
 
-var marker; // the little circle which track your mouse
 
+// ----------------------------------------------------------------------------
+// Utility functions
+
+// cid2name :: Cid -> String
+function cid2name(cid) {
+    if (cid == -1) {
+        return "OTHER";
+    } else {
+        return nametable[cid];
+    }
+}
+
+// tix2time :: Tix -> Double
+function tix2time(tix) {
+    return timetable[tix];
+}
+
+// sumColumns :: [{values: [{y: Int}]}] -> [{y: Int}]
+function sumColumns(matrix) {
+  return d3.transpose(matrix.map(function (s) {
+     return s.values.map(function (d) { return d.y; });
+  })).map(function (x) { return {y: d3.sum(x)}; })
+}
+
+// calcCoords :: Series -> Tix -> [Int,Int]
 function calcCoords(s, tix) {
   return [x(tix2time(tix)), (first ? height : y((s.values[tix].y+s.values[tix].y0)/(currGraph == GraphEnum.NORMALIZED ? aggregate[tix].y : 1)))]
 }
 
+// standardTranslate :: Series -> Datapoint -> String (SVG translate)
 function standardTranslate(s, d) {
   var r = calcCoords(s, d.tix);
   return "translate("+r[0]+","+r[1]+")";
 }
 
+// mouseoverBand :: Cid -> IO ()
 function mouseoverBand(cid) {
   namefield.text(cid2name(cid))
   namebox.style("fill", color(cid))
@@ -179,6 +213,7 @@ function mouseoverBand(cid) {
   svg.selectAll(".area").filter(function(s) {return s.cid == cid}).style("opacity", 1);
 }
 
+// mouseoutBand :: Cid -> IO ()
 function mouseoutBand(cid) {
   namefield.text("")
   namebox.style("opacity", 0);
@@ -188,6 +223,7 @@ function mouseoutBand(cid) {
   svg.selectAll(".area").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
 }
 
+// xcoord2tix :: Int -> Tix
 // reverse engineers an SVG relative pixel into a tix
 function xcoord2tix(xpixel) {
   var xinv = x.invert(xpixel);
@@ -196,11 +232,8 @@ function xcoord2tix(xpixel) {
   return leftCand < 0 || tix2time(rightCand)-xinv < xinv-tix2time(leftCand) ? rightCand : leftCand;
 }
 
-
-var yaxisbox;
-var rows;
-var legend;
-var pie;
+// ----------------------------------------------------------------------------
+// Load the data!
 
 d3.json(backend + "/view/" + loc, function(heap) {
   symbols = heap.data;
@@ -394,7 +427,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
     .style("fill", "#000"); // css-ize me
 
   // legend
-  legend = svg.append("g")
+  var legend = svg.append("g")
     .attr("transform", "translate(" + (width + 20) + ","+margin.top+")");
   rows = legend.selectAll("g.legendrow")
     .data(symbols)
