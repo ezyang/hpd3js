@@ -177,6 +177,13 @@ var interactionMode = InteractEnum.SELECT;
 var currGraph = GraphEnum.STACKED;
 var nextGraph;
 
+function redraw() {
+  if (currGraph == GraphEnum.STACKED) stackedArea();
+  else if (currGraph == GraphEnum.STREAM) streamgraph();
+  else if (currGraph == GraphEnum.OVERLAY) overlappingArea();
+  else if (currGraph == GraphEnum.NORMALIZED) normalizedStackedArea();
+}
+
 // use these to calculate various parameters regardless of how we've scaled things
 var x, y, line, xaxis, yaxis, area;
 
@@ -478,18 +485,18 @@ function updateLegend(symbols, dur) {
             shistory.push([slim,others]);
             slim = [s];
             others = [];
+            singleband = true;
+            namefield.text(cid2name(s.cid))
+            namebox.style("fill", color(s.cid))
+              .style("opacity", 0.6);
           } else {
             zoomdown();
           }
-          singleband = true;
-          namefield.text(cid2name(s.cid))
-          namebox.style("fill", color(s.cid))
-            .style("opacity", 0.6);
           updateAreas(slim);
           updateAnnotations(slim);
           updateLegend(slim, duration);
           updatePie(slim, duration);
-          stackedArea();
+          redraw();
         })
         ;
     });
@@ -578,6 +585,23 @@ function zoomdown() {
   slim.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 }
 
+function goback() {
+  if (shistory.length < 2) {
+    return;
+  }
+  var r = shistory.pop();
+  slim = r[0];
+  others = r[1];
+  singleband = false;
+  namefield.text("")
+  namebox.style("opacity", 0);
+  updateAreas(slim);
+  updateAnnotations(slim);
+  updateLegend(slim, duration);
+  updatePie(slim, duration);
+  redraw();
+}
+
 d3.json(backend + "/view/" + loc, function(heap) {
   symbols   = heap.data;
   timetable = heap.timetable;
@@ -641,7 +665,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
   vlines.append("rect")
     .attr("class", "leyline")
     .attr("enable-background", "new")
-    .style("fill", "#555")
+    .style("fill", "#FFF")
     .style("opacity", 0.7)
     .attr("y", 0)
     .attr("height", height)
@@ -831,6 +855,8 @@ function overlappingArea() {
     <button onclick="stackedArea()">Stacked Graph</button>
     <button onclick="normalizedStackedArea()">Normalized Stacked Graph</button>
     <button onclick="overlappingArea()">Overlayed area Graph</button>
+    ~
+    <button onclick="goback()">Back</button>
     <!--<button onclick="lineGraph()">Line Graph</button>--><br />
     Lock scrubs together: <input id="scrublock" type="checkbox" />
     <!--Filter: <input type="text" id="filter" onchange="" />-->
