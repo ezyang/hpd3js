@@ -48,6 +48,21 @@ svg {
   opacity: 1;
 }
 
+.xaxis {
+  font-size:12px;
+}
+
+.xaxis path {
+  fill: none;
+  stroke: #000;
+  stroke-width: 2px;
+}
+
+.xaxis .tick {
+  stroke: #000;
+  stroke-width: 2px;
+}
+
     </style>
   </head>
   <body>
@@ -69,9 +84,9 @@ var tooltip = d3.select("body")
     .attr("class", "tooltip")
     .style("visibility", "hidden");
 
-var margin = {top: 10, right: 200, bottom: 10, left: 0},
+var margin = {top: 10, right: 200, bottom: 25, left: 0},
     width = 800 - margin.right - margin.left,
-    height = 500 - margin.top - margin.bottom;
+    height = 520 - margin.top - margin.bottom;
 
 var duration = 1500,
     delay = 500;
@@ -164,11 +179,10 @@ d3.json(backend + "/view/" + loc, function(heap) {
       .x(function(d,i) { return x(tix2time(i)); })
       .y(function(d) { return y(d.y); });
 
-  // A line generator, for the dark stroke.
-  axis = d3.svg.line()
-      .interpolate(interpol)
-      .x(function(d,i) { return x(tix2time(i)); })
-      .y(height);
+  // An axis generator, for the dark stroke.
+  axis = d3.svg.axis()
+  .scale(x)
+  .orient("bottom");
 
   // A area generator, for the dark stroke.
   area = d3.svg.area()
@@ -215,6 +229,11 @@ d3.json(backend + "/view/" + loc, function(heap) {
       .attr("transform", function() { return "translate(9,5)" }) // slight offset
       .text(function (a) { return a.text; });
   }
+
+  svg.append("g")
+    .attr("transform", "translate(0,"+height+")")
+    .attr("class", "xaxis")
+    .call(axis);
 
   var g = svg.selectAll("g.symbol")
       .data(symbols)
