@@ -41,11 +41,11 @@ svg {
   transition-property: opacity;
   transition-duration: 250ms;
   transition-timing-function: linear;
-  opacity: 0.45;
+  opacity: 0.6;
 }
 
 .area:hover {
-  opacity: 0.65;
+  opacity: 1;
 }
 
     </style>
@@ -210,7 +210,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
       .attr("transform", function(d) { return standardTranslate(s, d); });
     m.insert("circle")
       .attr("r", annotCircleR)
-      .style("fill", color(s.cid))
+      .style("fill", d3.hsl(color(s.cid)).darker())
     m.insert("text")
       .attr("transform", function() { return "translate(9,5)" }) // slight offset
       .text(function (a) { return a.text; });
@@ -268,8 +268,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
           if (interactionMode != InteractEnum.SELECT) {
             marker.transition().duration(duration/8)
               .attr("r", annotCircleUnfocusR)
-              .style("fill", "#000")
-              .style("opacity", 0.7);
+              .style("fill", "#000");
             interactionMode = InteractEnum.SELECT;
             form.transition().duration(duration/8)
               .style("opacity", 0)
@@ -283,8 +282,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
           var r = calcCoords(s, calculateTix(mouseinfo));
           marker.transition().duration(duration/4)
             .attr("r", annotCircleR)
-            .style("fill", color(s.cid))
-            .style("opacity", 1)
+            .style("fill", d3.hsl(color(s.cid)).darker())
             .attr("cx", r[0]).attr("cy", r[1]);
           form = svg.append("foreignObject");
           var input = form.append("xhtml:input");
@@ -338,8 +336,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
     .attr("class", "edgeMark")
     .style("visibility", "hidden")
     .attr("r", annotCircleUnfocusR)
-    .style("fill", "#000")
-    .style("opacity", 0.7); // css-ize me
+    .style("fill", "#000"); // css-ize me
 
   // legend
   legend = svg.append("g")
