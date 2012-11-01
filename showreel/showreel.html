@@ -458,7 +458,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
     .attr("transform", "translate("+(width+margin.left+57)+","+(margin.top+margin.bottom+height-margin.right/2-50)+")");
   var pielayout = d3.layout.pie().value(function(s) {return s.sumUsage;}).sort(null);
   var arc = d3.svg.arc().innerRadius(margin.right/2-50).outerRadius(margin.right/2-10);
-  pie.selectAll("path")
+  var piechart = pie.selectAll("path")
     .data(pielayout(symbols))
     .enter().append("path")
     .attr("fill", function(s) {return color(s.data.cid)})
@@ -466,6 +466,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
     .attr("d", arc)
     .style("opacity", 0.6)
     .each(function(s) {
+        this._current = s;
         var cur = d3.select(this);
         cur.on("mouseover", function() {mouseoverBand(s.data.cid)})
            .on("mouseout", function() {mouseoutBand(s.data.cid)});
@@ -476,16 +477,16 @@ d3.json(backend + "/view/" + loc, function(heap) {
     .scale(x)
     .orient("bottom");
 
-  var bounds = [0, width];
+  var bounds = [0, timetable.length-1];
   var vlines = svg.append("g").selectAll(".leyline")
     .data(bounds)
     .enter();
   function posleyline(m) {
-    m.attr("x", function(d,i) {return i ? d+2 : 0})
-     .attr("width", function(d,i) {return i ? (width-d-2) : d});
+    m.attr("x", function(d,i) {return i ? x(tix2time(d))+2 : 0})
+     .attr("width", function(d,i) {return i ? (width-x(tix2time(d))-2) : x(tix2time(d))});
   }
   function postalisman(m) {
-    m.attr("transform", function(d) {return "translate("+d+","+(height+30)+")";});
+    m.attr("transform", function(d) {return "translate("+x(tix2time(d))+","+(height+30)+")";});
   }
   vlines.append("rect")
     .attr("class", "leyline")
@@ -501,24 +502,34 @@ d3.json(backend + "/view/" + loc, function(heap) {
       .call(postalisman)
       .attr("d", d3.svg.symbol().type("triangle-up").size(100))
       .on("dblclick", function() {
-        bounds = [0, width];
+        bounds = [0, timetable.length-1];
         svg.selectAll(".talisman").data(bounds).call(postalisman);
         svg.selectAll(".leyline").data(bounds).call(posleyline);
       })
       .call(d3.behavior.drag().on("drag", function(d,i) {
         var tix = xcoord2tix(d3.mouse(svg.node())[0]);
-        var xcoord = x(timetable[tix]);
         if (bounds[0] == bounds[1]) {
-          bounds[1] = xcoord;
-          bounds[0] = xcoord;
-        } else if (i == 0 && xcoord > bounds[1] || i == 1 && xcoord < bounds[0]) {
+          bounds[1] = tix;
+          bounds[0] = tix;
+        } else if (i == 0 && tix > bounds[1] || i == 1 && tix < bounds[0]) {
           return;
         } else {
-          bounds[i] = xcoord;
+          bounds[i] = tix;
         }
         svg.selectAll(".talisman").data(bounds).call(postalisman);
         svg.selectAll(".leyline").data(bounds).call(posleyline);
+        //pielayout.value(function(s) {return d3.sum()});
+        piechart = piechart.data(pielayout(symbols.map(function (s) {return {cid: s.cid, sumUsage: d3.sum(s.values.slice(bounds[0], bounds[1]+1), function(d) {return d.y})}})));
+        piechart.transition().duration(50).attrTween("d", arcTween);
       }));
+
+  function arcTween(a) {
+    var i = d3.interpolate(this._current, a);
+    this._current = i(0);
+    return function(t) {
+      return arc(i(t));
+    };
+  }
 
   svg.append("g")
     .attr("transform", "translate(0,"+height+")")
