@@ -32,9 +32,11 @@ svg {
 }
 
 .area {
+  /*
   transition-property: opacity;
-  transition-duration: 250ms;
+  transition-duration: 100ms;
   transition-timing-function: linear;
+  */
 }
 
 .axis {
@@ -184,6 +186,14 @@ function mouseoutBand(cid) {
   svg.selectAll(".area").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
 }
 
+// reverse engineers an SVG relative pixel into a tix
+function xcoord2tix(xpixel) {
+  var xinv = x.invert(xpixel);
+  var rightCand = d3.bisectRight(timetable, xinv);
+  var leftCand = rightCand-1;
+  return leftCand < 0 || tix2time(rightCand)-xinv < xinv-tix2time(leftCand) ? rightCand : leftCand;
+}
+
 
 var yaxisbox;
 var rows;
@@ -275,14 +285,6 @@ d3.json(backend + "/view/" + loc, function(heap) {
       .attr("class", "symbol");
 
   g.each(function(s, i) {
-    // reverse engineers an SVG relative pixel into a tix
-    // XXX move out, but has dependence on x()
-    function calculateTix(xpixel) {
-      var xinv = x.invert(xpixel);
-      var rightCand = d3.bisectRight(timetable, xinv);
-      var leftCand = rightCand-1;
-      return leftCand < 0 || tix2time(rightCand)-xinv < xinv-tix2time(leftCand) ? rightCand : leftCand;
-    }
     d3.select(this).selectAll(".area")
         .data(d3.range(1))
       .enter().insert("path", ".line")
@@ -298,7 +300,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
       })
       .on("mousemove", function() {
         if (interactionMode == InteractEnum.SELECT) {
-          var r = calcCoords(s, calculateTix(d3.mouse(svg.node())[0]));
+          var r = calcCoords(s, xcoord2tix(d3.mouse(svg.node())[0]));
           marker.attr("cx", r[0]).attr("cy", r[1]); // transition?
         };
       })
@@ -323,9 +325,9 @@ d3.json(backend + "/view/" + loc, function(heap) {
           }
         }
         if (interactionMode == InteractEnum.SELECT) {
-          var xcoord = calculateTix(d3.mouse(svg.node())[0]);
+          var xcoord = xcoord2tix(d3.mouse(svg.node())[0]);
           interactionMode = InteractEnum.ENTRY;
-          var r = calcCoords(s, calculateTix(mouseinfo));
+          var r = calcCoords(s, xcoord2tix(mouseinfo));
           marker.transition().duration(duration/4)
             .attr("r", annotCircleR)
             .style("fill", d3.hsl(color(s.cid)).darker())
