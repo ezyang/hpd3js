@@ -31,7 +31,7 @@ svg {
   font-size: 12px;
 }
 
-.area {
+.band {
   /*
   transition-property: opacity;
   transition-duration: 100ms;
@@ -67,6 +67,7 @@ svg {
   - cannot save annotations to other
   - disappear captions when they're not around
   - interaction mechanism is not clear about how to interact with the scrubs
+  - scrub should have two windows and zoom on the big one
  */
 
 // variable naming convention:
@@ -116,7 +117,6 @@ var namefield = namegroup.append("text")
   .attr("class", "namefield");
 
 var form;     // form element used to submit annotations
-var marker;   // the little circle which tracks your mouse and is where an annotation will go
 var yaxisbox; // box which contains the y-axis (needs to change)
 var rows;     // rows of the legend on the right
 var pie;      // pie chart on bottom right
@@ -217,7 +217,7 @@ function mouseoverBand(cid) {
   rows.selectAll(".bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
   rows.selectAll(".fgbox").filter(function(s) {return s.cid == cid}).style("opacity", 1);
   pie.selectAll(".arc").filter(function(s) {return s.data.cid == cid}).style("opacity", 1);
-  svg.selectAll(".area").filter(function(s) {return s.cid == cid}).style("opacity", 1);
+  svg.selectAll(".band").filter(function(s) {return s.cid == cid}).style("opacity", 1);
 }
 
 // mouseoutBand :: Cid -> IO ()
@@ -228,7 +228,7 @@ function mouseoutBand(cid) {
   rows.selectAll(".bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0);
   rows.selectAll(".fgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
   pie.selectAll(".arc").filter(function(s) {return s.data.cid == cid}).style("opacity", 0.6);
-  svg.selectAll(".area").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
+  svg.selectAll(".band").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
 }
 
 // xcoord2tix :: Int -> Tix
@@ -238,6 +238,196 @@ function xcoord2tix(xpixel) {
   var rightCand = d3.bisectRight(timetable, xinv);
   var leftCand = rightCand-1;
   return leftCand < 0 || tix2time(rightCand)-xinv < xinv-tix2time(leftCand) ? rightCand : leftCand;
+}
+
+// function because we can add new annotations on response to user input
+// remember that annotations are *per series*
+function updateAnnotations(el, s, annotations) {
+  // JOIN
+  var annot = d3.select(el).selectAll(".annot").data(annotations);
+  annot.enter().append("g")
+    .attr("class", "annot")
+    .attr("transform", function(d) { return standardTranslate(s, d); })
+    .call(function (g) {
+      g.append("circle")
+        .attr("r", annotCircleR)
+        .style("fill", d3.hsl(color(s.cid)).darker())
+      g.append("text")
+        .attr("transform", function() { return "translate(9,5)" }); // slight offset
+    });
+  // UPDATE
+  annot.selectAll("text").text(function (a) { return a.text; });
+  // EXIT
+  annot.exit().remove();
+}
+
+// ----------------------------------------------------------------------------
+// Update functions; the workhorses
+
+var MarkerEnum = {
+  HIDDEN: 0,
+  UNFOCUSED: 1,
+  FOCUSED: 2
+}
+function updateMarkerSelect(md) {
+  if (interactionMode == InteractEnum.SELECT) updateMarker(md);
+}
+function updateMarker(md) {
+  // JOIN (singleton)
+  if (md.st != MarkerEnum.HIDDEN && (typeof md.x == "undefined" || typeof md.y == "undefined")) {
+    // give it a little help
+    var r = calcCoords(md.s, xcoord2tix(md.mouse[0]));
+    md.x = r[0];
+    md.y = r[1];
+  }
+  var marker = svg.selectAll(".marker").data(d3.range(1));
+  marker.enter().insert("circle")
+    .attr("class", "marker")
+    .style("stroke", "#000");
+  // UPDATE
+  marker
+    .attr("cx", md.st == MarkerEnum.HIDDEN ? 0 : md.x)
+    .attr("cy", md.st == MarkerEnum.HIDDEN ? 0 : md.y)
+    .style("visibility", md.st == MarkerEnum.HIDDEN  ? "hidden" : "visible")
+    .transition()
+    .attr("r", md.st == MarkerEnum.FOCUSED ? 5 : 2)
+    .style("stroke-width", md.st == MarkerEnum.FOCUSED ? 2 : 0)
+    .style("fill",         md.st == MarkerEnum.FOCUSED ? d3.hsl(color(md.s.cid)).darker() : "#000");
+}
+
+/*
+function updateForm(enabled) {
+  // JOIN
+  var annotForm = svg.selectAll(".annotForm").data(enabled ? d3.range(1) : d3.range(0));
+  annotForm.enter()
+
+          form = svg.append("foreignObject");
+          var input = form.append("xhtml:input");
+          var theannot = s.annotations.filter(function(a) {return a.tix == xcoord});
+          // XXX blah
+          var actualnode = svg.selectAll("g.symbol2").filter(function (x,j) { return i == j; }).node();
+          if (theannot.length) {
+            input.node().value = theannot[0].text;
+          }
+          input.attr("type", "text")
+            .on("keyup", function() {
+              if (d3.event.keyCode == 13) { // ENTER
+              var text = input.node().value;
+              $.post(backend + "/annotate/" + loc, {
+                  f2: s.cid,
+                  f3: xcoord,
+                  f4: text
+                  }, function() {
+                    blurit();
+                    var done = false;
+                    s.annotations.forEach(function(a) {
+                      if (a.tix == xcoord) {
+                        a.text = text;
+                        done = true;
+                      }
+                    });
+                    if (!done) s.annotations.push({tix: xcoord, text: text });
+                    updateAnnotations(actualnode, s, s.annotations);
+                  });
+              }
+            })
+            .on("blur", function() { setTimeout(blurit, 200); }); // force it to run after
+          var r = calcCoords(s, xcoord);
+          form.attr("width", 250).attr("height", "1.5em").style("opacity", 0)
+            .attr("x", r[0]).attr("y", r[1])
+            .style("visibility", "visible")
+            .transition().duration(duration/4)
+            .style("opacity", 1);
+          form.select("input").node().focus();
+}
+*/
+
+function updateAreas(symbols) {
+  // JOIN
+  var symbol = svg.selectAll(".symbol").data(symbols);
+  symbol.enter().append("g")
+    .attr("class", "symbol")
+  // UPDATE
+  symbol.each(function(s, i) {
+    // JOIN (boring)
+    var band = d3.select(this).selectAll(".band").data(d3.range(1));
+    band.enter().insert("path", ".line") // we want small areas to render on TOP
+      .attr("class", "band")
+      .attr("d", function(d) { return area(s.values); })
+      .style("fill", color(s.cid))
+      .style("opacity", 0.6)
+      .on("mouseover", function() {
+        mouseoverBand(s.cid);
+        updateMarkerSelect({st: MarkerEnum.UNFOCUSED, s: s, mouse: d3.mouse(svg.node())})
+      })
+      .on("mousemove", function() {
+        updateMarkerSelect({st: MarkerEnum.UNFOCUSED, s: s, mouse: d3.mouse(svg.node())})
+      })
+      .on("mouseout", function() {
+        mouseoutBand(s.cid);
+        updateMarkerSelect({st: MarkerEnum.HIDDEN})
+      })
+      .on("click", function() {
+        // Removes any form entry
+        var mouse = d3.mouse(svg.node());
+        function blurit() {
+          if (interactionMode != InteractEnum.SELECT) {
+            updateMarker({st: MarkerEnum.UNFOCUSED, s: s, mouse: mouse});
+            interactionMode = InteractEnum.SELECT;
+            form.transition().duration(duration/8)
+              .style("opacity", 0)
+              .remove();
+            form = null;
+          }
+        }
+        if (interactionMode == InteractEnum.SELECT) {
+          updateMarker({st: MarkerEnum.FOCUSED, s: s, mouse: mouse});
+          interactionMode = InteractEnum.ENTRY;
+          var xcoord = xcoord2tix(d3.mouse(svg.node())[0]);
+          form = svg.append("foreignObject");
+          var input = form.append("xhtml:input");
+          var theannot = s.annotations.filter(function(a) {return a.tix == xcoord});
+          // XXX blah
+          var actualnode = svg.selectAll("g.symbol2").filter(function (x,j) { return i == j; }).node();
+          if (theannot.length) {
+            input.node().value = theannot[0].text;
+          }
+          input.attr("type", "text")
+            .on("keyup", function() {
+              if (d3.event.keyCode == 13) { // ENTER
+              var text = input.node().value;
+              $.post(backend + "/annotate/" + loc, {
+                  f2: s.cid,
+                  f3: xcoord,
+                  f4: text
+                  }, function() {
+                    blurit();
+                    var done = false;
+                    s.annotations.forEach(function(a) {
+                      if (a.tix == xcoord) {
+                        a.text = text;
+                        done = true;
+                      }
+                    });
+                    if (!done) s.annotations.push({tix: xcoord, text: text });
+                    updateAnnotations(actualnode, s, s.annotations);
+                  });
+              }
+            })
+            .on("blur", function() { setTimeout(blurit, 200); }); // force it to run after
+          var r = calcCoords(s, xcoord);
+          form.attr("width", 250).attr("height", "1.5em").style("opacity", 0)
+            .attr("x", r[0]).attr("y", r[1])
+            .style("visibility", "visible")
+            .transition().duration(duration/4)
+            .style("opacity", 1);
+          form.select("input").node().focus();
+        } else if (interactionMode == InteractEnum.ENTRY) {
+          blurit();
+        }
+      })
+      ;
+  });
 }
 
 // ----------------------------------------------------------------------------
@@ -290,138 +480,18 @@ d3.json(backend + "/view/" + loc, function(heap) {
   symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 
   // aggregate counts for pie chart
-  aggregate = sumColumns(symbols);
+  aggregate = sumColumns(symbols); // XXX eliminate me
 
-  // function because we can add new annotations on response to user input
-  function doAnnotations(el, s) {
-    var p = d3.select(el).selectAll(".annot")
-      .data(s.annotations);
-    p.selectAll("text").text(function (a) { return a.text; });
-    var m = p.enter().insert("g").attr("class", "annot")
-      .attr("transform", function(d) { return standardTranslate(s, d); });
-    m.insert("circle")
-      .attr("r", annotCircleR)
-      .style("fill", d3.hsl(color(s.cid)).darker())
-    m.insert("text")
-      .attr("transform", function() { return "translate(9,5)" }) // slight offset
-      .text(function (a) { return a.text; });
-    p.exit().remove();
-  }
+// ----------------------------------------------------------------------------
+// Build some stuff
 
-  // several layers so we get things to z-index properly
-
-  var g = svg.selectAll("g.symbol")
-      .data(symbols)
-    .enter().append("g")
-      .attr("class", "symbol");
-
-  g.each(function(s, i) {
-    d3.select(this).selectAll(".area")
-        .data(d3.range(1))
-      .enter().insert("path", ".line")
-        .attr("class", "area")
-        .style("fill", color(s.cid))
-        .style("opacity", 0.6)
-        .attr("d", function(d) { return area(s.values); })
-      .on("mouseover", function() {
-        mouseoverBand(s.cid);
-        if (interactionMode == InteractEnum.SELECT) {
-          marker.style("visibility", "visible");
-        };
-      })
-      .on("mousemove", function() {
-        if (interactionMode == InteractEnum.SELECT) {
-          var r = calcCoords(s, xcoord2tix(d3.mouse(svg.node())[0]));
-          marker.attr("cx", r[0]).attr("cy", r[1]);
-        };
-      })
-      .on("mouseout", function() {
-        mouseoutBand(s.cid);
-        if (interactionMode == InteractEnum.SELECT) {
-          marker.style("visibility", "hidden");
-        }
-      })
-      .on("click", function() {
-        // Removes any form entry
-        function blurit() {
-          if (interactionMode != InteractEnum.SELECT) {
-            marker.transition().duration(duration/8)
-              .attr("r", annotCircleUnfocusR)
-              .style("fill", "#000")
-              .style("stroke-width", "0");
-            interactionMode = InteractEnum.SELECT;
-            form.transition().duration(duration/8)
-              .style("opacity", 0)
-              .remove();
-            form = null;
-          }
-        }
-        if (interactionMode == InteractEnum.SELECT) {
-          var xcoord = xcoord2tix(d3.mouse(svg.node())[0]);
-          interactionMode = InteractEnum.ENTRY;
-          var r = calcCoords(s, xcoord);
-          marker.transition().duration(duration/4)
-            .attr("r", annotCircleR)
-            .style("stroke-width", "2px")
-            .style("stroke", "#000")
-            .style("fill", d3.hsl(color(s.cid)).darker())
-            .attr("cx", r[0]).attr("cy", r[1]);
-          form = svg.append("foreignObject");
-          var input = form.append("xhtml:input");
-          var theannot = s.annotations.filter(function(a) {return a.tix == xcoord});
-          // XXX blah
-          var actualnode = svg.selectAll("g.symbol2").filter(function (x,j) { return i == j; }).node();
-          if (theannot.length) {
-            input.node().value = theannot[0].text;
-          }
-          input.attr("type", "text")
-            .on("keyup", function() {
-              if (d3.event.keyCode == 13) { // ENTER
-              var text = input.node().value;
-              $.post(backend + "/annotate/" + loc, {
-                  f2: s.cid,
-                  f3: xcoord,
-                  f4: text
-                  }, function() {
-                    blurit();
-                    var done = false;
-                    s.annotations.forEach(function(a) {
-                      if (a.tix == xcoord) {
-                        a.text = text;
-                        done = true;
-                      }
-                    });
-                    if (!done) s.annotations.push({tix: xcoord, text: text });
-                    doAnnotations(actualnode, s);
-                  });
-              }
-            })
-            .on("blur", function() { setTimeout(blurit, 200); }); // force it to run after
-          form.attr("width", 250).attr("height", "1.5em").style("opacity", 0)
-            .attr("x", r[0]).attr("y", r[1])
-            .style("visibility", "visible")
-            .transition().duration(duration/4)
-            .style("opacity", 1);
-          form.select("input").node().focus();
-        } else if (interactionMode == InteractEnum.ENTRY) {
-          blurit();
-        }
-      })
-      ;
-  });
+  updateAreas(symbols);
 
   // annotations layer
   var g2 = svg.selectAll("g.symbol2")
      .data(symbols)
      .enter().append("g").attr("class", "symbol2")
-     .each(function (d) { doAnnotations(this, d); });
-
-  // marker layer
-  marker = svg.insert("circle")
-    .attr("class", "edgeMark")
-    .style("visibility", "hidden")
-    .attr("r", annotCircleUnfocusR)
-    .style("fill", "#000");
+     .each(function (s) { updateAnnotations(this, s, s.annotations); });
 
   // legend
   var legend = svg.append("g")
@@ -592,7 +662,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
 function reset() {
   // reset interaction mode, not much else...
   interactionMode = InteractEnum.SELECT;
-  marker.style("visibility", "hidden");
+  updateMarker({st: MarkerEnum.HIDDEN});
   if (form) {
     form.transition().duration(duration/4)
               .style("opacity", 0)
@@ -632,7 +702,7 @@ function stackedArea() {
 
   var delayFun = function(d, i) { return (first||currGraph!=GraphEnum.OVERLAY) ? 0 : easeOver * easing(i/showbands); };
 
-  t.select("path.area")
+  t.select("path.band")
     .delay(delayFun)
     .style("fill-opacity", 1)
     .attr("d", function(d) { return area(d.values); });
@@ -670,7 +740,7 @@ function normalizedStackedArea() {
         .duration(duration/2);
 
   currGraph = GraphEnum.NORMALIZED;
-  t.select("path.area")
+  t.select("path.band")
     .style("fill-opacity", 1)
     .attr("d", function(d) { return area(d.values); });
   svg.selectAll(".symbol2").each(function(s,i) {
@@ -704,13 +774,13 @@ function streamgraph() {
   var t = svg.selectAll(".symbol").transition()
       .duration(duration);
 
-  t.select("path.area")
+  t.select("path.band")
       .attr("d", function(d) { return area(d.values); });
 
   t.select("path.line")
       .style("stroke-opacity", 1e-6)
       .attr("d", function(d) { return line(d.values); });
-  t.select(".area")
+  t.select(".band")
       .style("fill-opacity", 1)
       .attr("d", function(d) { return area(d.values); });
   svg.selectAll(".symbol2").each(function(s) {
@@ -751,7 +821,7 @@ function overlappingArea() {
       .style("stroke-opacity", 1)
       .attr("d", function(d) { return line(d.values); });
 
-  t.select(".area")
+  t.select(".band")
       //.style("fill-opacity", .5)
       .attr("d", function(d) { return area(d.values); });
 
@@ -802,13 +872,13 @@ function lineGraph() {
   var t = g.transition()
       .duration(duration);
 
-  t.select(".area")
+  t.select(".band")
       .style("stroke-opacity", 1)
       .style("fill", "none") // wrong
       .attr("d", function(d) { return line(d.values); });
 
   /*
-  t.select(".area")
+  t.select(".band")
       .attr("d", function(d) { return area(d.values); });
       */
 
