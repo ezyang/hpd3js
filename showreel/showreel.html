@@ -220,7 +220,7 @@ function sumColumns(matrix) {
 
 // calcCoords :: Series -> Tix -> [Int,Int]
 function calcCoords(s, tix) {
-  return [x(tix2time(tix)), (first ? height : y((s.values[tix].y+s.values[tix].y0)/(currGraph == GraphEnum.NORMALIZED ? aggregate[tix].y : 1)))]
+  return [x(tix2time(tix)), y((s.values[tix].y+s.values[tix].y0)/(currGraph == GraphEnum.NORMALIZED ? aggregate[tix].y : 1))]
 }
 
 // standardTranslate :: Series -> Datapoint -> String (SVG translate)
@@ -271,7 +271,7 @@ function xcoord2tix(xpixel) {
 // ----------------------------------------------------------------------------
 // Update functions; the workhorses
 
-function updateAnnotations(symbols) {
+function updateAnnotations(symbols, dur) {
   // JOIN
   var annotBand = svg.selectAll(".annotBand").data(symbols, function(s) {return s.cid});
   annotBand.enter().append("g")
@@ -279,6 +279,14 @@ function updateAnnotations(symbols) {
   annotBand.each(function (s,i) {
     // JOIN
     var annot = d3.select(this).selectAll(".annot").data(s.annotations);
+    // UPDATE
+    var params = animateIncremental(dur);
+    annot
+      .transition()
+      .duration(params[0])
+      .delay(function() { params[1](s,i) })
+      .attr("transform", function(d) { return standardTranslate(s, d); });
+    // INSERT
     annot.enter().insert("g", ":first-child")
       .attr("class", "annot")
       .attr("transform", function(d) { return standardTranslate(s, d); }) // XXX bleh, shouldn't be necessary
@@ -289,15 +297,9 @@ function updateAnnotations(symbols) {
         g.append("text")
           .attr("transform", function() { return "translate(9,5)" }); // slight offset
       });
-    // UPDATE
-    var params = animateIncremental();
+    // INSERT + UPDATE
     annot
       .selectAll("text").text(function (a) { return a.text; });
-    annot
-      .transition()
-      .duration(params[0])
-      .delay(function() { params[1](s,i) })
-      .attr("transform", function(d) { return standardTranslate(s, d); });
     // EXIT
     annot.exit().remove();
   });
@@ -398,7 +400,7 @@ function updateForm(fi) {
     .remove();
 }
 
-function animateIncremental() {
+function animateIncremental(duration) {
   var easing = function (t) {return 1 - (1-t)*(1-t)*(1-t);}
   var easeOver = showbands * 150;
   var delayCond = first || currGraph != GraphEnum.OVERLAY || nextGraph != GraphEnum.STACKED;
@@ -406,7 +408,7 @@ function animateIncremental() {
   return [delayCond ? duration : duration/2, delayFun]
 }
 
-function updateAreas(symbols, cid) {
+function updateAreas(symbols, dur) {
   // JOIN
   var g = svg.selectAll(".symbolbox").data(d3.range(1));
   g.enter().insert("g").attr("class", "symbolbox")
@@ -445,9 +447,9 @@ function updateAreas(symbols, cid) {
         }
       });
     band
-      .style("opacity", s.cid == cid ? 1 : 0.6);
+      .style("opacity", 0.6);
   });
-  var params = animateIncremental();
+  var params = animateIncremental(dur);
   symbol.transition().duration(params[0])
     .select(".band")
       .delay(params[1])
@@ -494,8 +496,7 @@ function updateLegend(symbols, dur) {
           } else {
             zoomdown();
           }
-          updateAreas(slim);
-          updateAnnotations(slim);
+          updateAnnotations(slim, duration);
           updateLegend(slim, duration);
           updatePie(slim, duration);
           redraw();
@@ -597,8 +598,6 @@ function goback() {
   singleband = false;
   namefield.text("")
   namebox.style("opacity", 0);
-  updateAreas(slim);
-  updateAnnotations(slim);
   updateLegend(slim, duration);
   updatePie(slim, duration);
   redraw();
@@ -644,8 +643,6 @@ d3.json(backend + "/view/" + loc, function(heap) {
 // Build some stuff
 
   // Order is important!
-  updateAreas(slim);
-  updateAnnotations(slim);
   updateLegend(slim, 0);
   updatePie(slim);
 
@@ -767,8 +764,8 @@ function stackedArea() {
       .y0(function(d) { return y(d.y0); })
       .y1(function(d) { return y(d.y0 + d.y); });
 
-  updateAreas(slim);
-  updateAnnotations(slim);
+  updateAreas(slim, duration);
+  updateAnnotations(slim, duration);
   currGraph = GraphEnum.STACKED;
 }
 
@@ -795,8 +792,8 @@ function normalizedStackedArea() {
       .y0(function(d,i) { return y(d.y0/aggregate[i].y); })
       .y1(function(d,i) { return y((d.y0 + d.y)/aggregate[i].y); });
 
-  updateAreas(slim);
-  updateAnnotations(slim);
+  updateAreas(slim, duration);
+  updateAnnotations(slim, duration);
   currGraph = GraphEnum.NORMALIZED;
 }
 
@@ -823,8 +820,8 @@ function streamgraph() {
       .y0(function(d) { return y(d.y0); })
       .y1(function(d) { return y(d.y0 + d.y); });
 
-  updateAreas(slim);
-  updateAnnotations(slim);
+  updateAreas(slim, duration);
+  updateAnnotations(slim, duration);
   currGraph = GraphEnum.STREAM;
 }
 
@@ -847,8 +844,8 @@ function overlappingArea() {
       .y0(height)
       .y1(function(d) { return y(d.y); });
 
-  updateAreas(slim);
-  updateAnnotations(slim);
+  updateAreas(slim, duration);
+  updateAnnotations(slim, duration);
   currGraph = GraphEnum.OVERLAY;
 }
 
