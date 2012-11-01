@@ -162,6 +162,7 @@ var GraphEnum = {
   }
 var interactionMode = InteractEnum.SELECT;
 var currGraph = GraphEnum.STACKED;
+var nextGraph;
 
 // use these to calculate various parameters regardless of how we've scaled things
 var x, y, line, xaxis, yaxis, area;
@@ -369,7 +370,7 @@ function updateForm(fi) {
 function animateIncremental() {
   var easing = function (t) {return 1 - (1-t)*(1-t)*(1-t);}
   var easeOver = showbands * 150;
-  var delayCond = first || currGraph!=GraphEnum.OVERLAY;
+  var delayCond = first || currGraph != GraphEnum.OVERLAY || nextGraph != GraphEnum.STACKED;
   var delayFun = function(d, i) { return delayCond ? 0 : easeOver * easing(i/showbands); };
   return [delayCond ? duration : duration/2, delayFun]
 }
@@ -652,6 +653,7 @@ function reset() {
 
 function stackedArea() {
   reset();
+  nextGraph = GraphEnum.STACKED;
   var stack = d3.layout.stack()
       .values(function(s) { return s.values; })
       .x(function(d,i) { return tix2time(i); })
@@ -678,6 +680,7 @@ function stackedArea() {
 
 function normalizedStackedArea() {
   reset();
+  nextGraph = GraphEnum.NORMALIZED;
   var stack = d3.layout.stack()
       .values(function(s) { return s.values; })
       .x(function(d,i) { return tix2time(i); })
@@ -701,7 +704,6 @@ function normalizedStackedArea() {
   var t = svg.selectAll(".symbol").transition()
         .duration(duration/2);
 
-  currGraph = GraphEnum.NORMALIZED;
   t.select("path.band")
     .style("fill-opacity", 1)
     .attr("d", function(d) { return area(d.values); });
@@ -709,10 +711,12 @@ function normalizedStackedArea() {
     d3.select(this).selectAll("g.annot").transition().duration(duration/2)
     .attr("transform", function(d) { return standardTranslate(s,d) });
   });
+  currGraph = GraphEnum.NORMALIZED;
 }
 
 function streamgraph() {
   reset();
+  nextGraph = GraphEnum.STREAM;
   var stack = d3.layout.stack()
       .values(function(d) { return d.values; })
       .x(function(d,i) { return tix2time(i); })
@@ -754,6 +758,7 @@ function streamgraph() {
 
 function overlappingArea() {
   reset();
+  nextGraph = GraphEnum.OVERLAY;
   var g = svg.selectAll(".symbol");
 
   y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y + d.y0; }))])
@@ -809,6 +814,7 @@ function overlappingArea() {
 
 function lineGraph() {
   reset();
+  nextGraph = GraphEnum.LINE;
   var g = svg.selectAll(".symbol");
 
   y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y + d.y0; }))])
