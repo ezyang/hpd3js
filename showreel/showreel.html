@@ -771,20 +771,11 @@ function overlappingArea() {
   });
 
   line
-      .y(function(d) { return y(d.y0 + d.y); });
-
-  g.select(".line")
-      .attr("d", function(d) { return line(d.values); });
+      .y(function(d) { return y(d.y); });
 
   area
       .y0(height)
       .y1(function(d) { return y(d.y); });
-
-  line
-      .y(function(d) { return y(d.y); });
-
-  var t = g.transition()
-      .duration(duration);
 
   updateAreas(slim);
   updateAnnotations(slim);
