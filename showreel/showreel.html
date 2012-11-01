@@ -94,7 +94,15 @@ var duration = 1500,
 var annotCircleR = 5;
 var annotCircleUnfocusR = 2;
 
-var color = d3.scale.category10();
+var undercolor = d3.scale.ordinal().range([
+  "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+  "#8c564b", "#e377c2", /*"#7f7f7f", */"#bcbd22", "#17becf"
+]);
+// XXX hack
+var color = function(x) {
+  if (x == -1) return "#7f7f7f";
+  else return undercolor(x);
+}
 
 // ----------------------------------------------------------------------------
 // global widgets which are independent of data
@@ -442,6 +450,8 @@ function updateLegend(symbols, dur) {
   var legendrow = svg.selectAll(".legendrow").data(symbols, function(s) {return s.cid});
   legendrow.enter().append("g")
     .attr("class", "legendrow")
+    .attr("transform", function (s,i) { return "translate(" + (width + 20) + ", "+ 0 +")" })
+    .style("opacity", 0)
     .each(function(s, i) {
       var cur = d3.select(this);
       cur.insert("rect")
@@ -488,6 +498,7 @@ function updateLegend(symbols, dur) {
     .transition()
     .duration(dur/2)
     .delay(dur/2)
+    .style("opacity", 1)
     .attr("transform", function (s,i) { return "translate(" + (width + 20) + ", "+ (i * 22) +")" });
   legendrow.selectAll(".bgbox")
     .style("fill", function(s) { return color(s.cid) })
