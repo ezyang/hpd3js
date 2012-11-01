@@ -65,6 +65,8 @@ svg {
   - annotation edits don't work
   - axes sometimes don't render properly on refresh
   - cannot save annotations to other
+  - disappear captions when they're not around
+  - interaction mechanism is not clear about how to interact with the scrubs
  */
 
 // variable naming convention:
@@ -409,7 +411,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
   });
 
   // annotations layer
-  svg.selectAll("g.symbol2")
+  var g2 = svg.selectAll("g.symbol2")
      .data(symbols)
      .enter().append("g").attr("class", "symbol2")
      .each(function (d) { doAnnotations(this, d); });
@@ -454,6 +456,17 @@ d3.json(backend + "/view/" + loc, function(heap) {
       cur.on("mouseout", function() {
         mouseoutBand(s.cid);
         });
+      cur.on("click", function() {
+      /*
+        g.data([s]).exit().remove();
+        g2.data([s]).exit().remove();
+        rows.data([s]).exit().remove();
+        g.transition().duration(duration);
+        g2.transition().duration(duration);
+        rows.transition().duration(duration);
+        stackedArea();
+        */
+      });
   });
 
   // pie chart
@@ -814,5 +827,6 @@ function lineGraph() {
     <button onclick="overlappingArea()">Overlayed area Graph</button>
     <!--<button onclick="lineGraph()">Line Graph</button>--><br />
     Lock scrubs together: <input id="scrublock" type="checkbox" />
+    <!--Filter: <input type="text" id="filter" onchange="" />-->
   </body>
 </html>
