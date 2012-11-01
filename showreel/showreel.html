@@ -22,12 +22,6 @@ svg {
   stroke-width: 2px;
 }
 
-.tooltip {
-  position: absolute;
-  z-index: 10;
-  background: #FFF;
-}
-
 .annot circle {
   stroke: #000;
   stroke-width: 2px;
@@ -41,11 +35,6 @@ svg {
   transition-property: opacity;
   transition-duration: 250ms;
   transition-timing-function: linear;
-  opacity: 0.6;
-}
-
-.area:hover {
-  opacity: 1;
 }
 
 .axis {
@@ -58,10 +47,21 @@ svg {
   shape-rendering: crispEdges;
 }
 
+.namefield {
+  font-size:12px;
+}
+
     </style>
   </head>
   <body>
     <script type="text/javascript">
+
+      /*
+         known bugs:
+          - click on annotation dot should trigger textbox
+          - delete annotation by clearing ocntents
+          - axes sometimes don't render properly on refresh
+         */
 
 // some parameters
 
@@ -74,14 +74,9 @@ var showbands = 10; // how many bands to show (the last band will be "OTHER")
 //    a = annotation point
 //    i,j,k = indexes
 
-var tooltip = d3.select("body")
-    .append("div")
-    .attr("class", "tooltip")
-    .style("visibility", "hidden");
-
-var margin = {top: 10, right: 200, bottom: 25, left: 50},
+var margin = {top: 30, right: 200, bottom: 25, left: 50},
     width = 800 - margin.right - margin.left,
-    height = 520 - margin.top - margin.bottom;
+    height = 550 - margin.top - margin.bottom;
 
 var duration = 1500,
     delay = 500;
@@ -96,6 +91,19 @@ var svg = d3.select("body").append("svg")
     .attr("height", height + margin.top + margin.bottom)
   .append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+var namegroup = svg.append("g");
+
+var namebox = namegroup.append("rect")
+  //.attr("transform", "translate(0,)")
+  .attr("transform", "translate(0,-24)")
+  .attr("class", "namebox")
+  .style("opacity", 0)
+  .attr("height", 20)
+  .attr("width", width);
+var namefield = namegroup.append("text")
+  .attr("transform", "translate(2,-10)")
+  .attr("class", "namefield");
 
 var first = true;
 var form; // form element used to submit annotations
@@ -134,7 +142,8 @@ GraphEnum = {
   STACKED:0,
   STREAM:1,
   OVERLAY:2,
-  NORMALIZED:3
+  NORMALIZED:3,
+  LINE:4
   }
 var currGraph = GraphEnum.STACKED;
 
@@ -158,7 +167,26 @@ function standardTranslate(s, d) {
   return "translate("+r[0]+","+r[1]+")";
 }
 
+function mouseoverBand(cid) {
+  namefield.text(cid2name(cid))
+  namebox.style("fill", color(cid))
+    .style("opacity", 0.6);
+  rows.selectAll(".bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
+  rows.selectAll(".fgbox").filter(function(s) {return s.cid == cid}).style("opacity", 1);
+  svg.selectAll(".area").filter(function(s) {return s.cid == cid}).style("opacity", 1);
+}
+
+function mouseoutBand(cid) {
+  namefield.text("")
+  namebox.style("opacity", 0);
+  rows.selectAll(".bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0);
+  rows.selectAll(".fgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
+  svg.selectAll(".area").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
+}
+
+
 var yaxisbox;
+var rows;
 
 d3.json(backend + "/view/" + loc, function(heap) {
   symbols = heap.data;
@@ -260,29 +288,22 @@ d3.json(backend + "/view/" + loc, function(heap) {
       .enter().insert("path", ".line")
         .attr("class", "area")
         .style("fill", color(s.cid))
+        .style("opacity", 0.6)
         .attr("d", function(irrelevant) { return area(s.values); })
       .on("mouseover", function() {
-        // D3 doesn't support concurrent disjoint transitions on the same
-        // elements, so this causes visual artifacts. Disabled.
-        //d3.select(d3.event.target).transition()
-        //  .style("opacity", 1);
-        tooltip.style("visibility", "visible").text(cid2name(s.cid));
+        mouseoverBand(s.cid);
         if (interactionMode == InteractEnum.SELECT) {
           marker.style("visibility", "visible");
         };
       })
       .on("mousemove", function() {
-        tooltip.style("top", (d3.event.pageY-10)+"px")
-                      .style("left",(d3.event.pageX+10)+"px");
         if (interactionMode == InteractEnum.SELECT) {
           var r = calcCoords(s, calculateTix(d3.mouse(svg.node())[0]));
           marker.attr("cx", r[0]).attr("cy", r[1]); // transition?
         };
       })
       .on("mouseout", function() {
-        //d3.select(d3.event.target).transition()
-        //  .style("opacity", .6);
-        tooltip.style("visibility", "hidden");
+        mouseoutBand(s.cid);
         if (interactionMode == InteractEnum.SELECT) {
           marker.style("visibility", "hidden");
         }
@@ -366,7 +387,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
   // legend
   legend = svg.append("g")
     .attr("transform", "translate(" + (width + 20) + ","+margin.top+")");
-  var rows = legend.selectAll("g.legendrow")
+  rows = legend.selectAll("g.legendrow")
     .data(symbols)
     .enter().append("g")
     .attr("class", "legendrow")
@@ -374,14 +395,28 @@ d3.json(backend + "/view/" + loc, function(heap) {
   rows.each(function(s, i) {
       var cur = d3.select(this);
       cur.insert("rect")
-        .attr("r", 4)
+        .attr("class", "bgbox")
+        .attr("height", "22")
+        .attr("width", margin.right-3)
+        .attr("transform", "translate(-1,-1)")
+        .style("fill", color(s.cid))
+        .style("opacity", 0);
+      cur.insert("rect")
+        .attr("class", "fgbox")
         .attr("width", "20")
         .attr("height", "20")
+        .style("opacity", 0.6)
         .style("fill", color(s.cid));
       cur.insert("text")
         .attr("transform", "translate(22,13)")
         .style("font-size", "12px")
         .text(cid2name(s.cid));
+      cur.on("mouseover", function() {
+        mouseoverBand(s.cid);
+        });
+      cur.on("mouseout", function() {
+        mouseoutBand(s.cid);
+        });
   });
 
   setTimeout(function () { stackedArea(); first = false; }, 0);
@@ -573,10 +608,56 @@ function overlappingArea() {
   currGraph = GraphEnum.OVERLAY;
 }
 
+function lineGraph() {
+  reset();
+  var g = svg.selectAll(".symbol");
+
+  y.domain([0, d3.max(symbols[0].values.map(function(d) { return d.y + d.y0; }))])
+  yaxisbox.call(yaxis);
+
+  symbols.forEach(function(s) {
+      s.values.forEach(function(d) {d.y0 = 0;});
+  });
+
+  line
+      .y(function(d) { return y(d.y0 + d.y); });
+
+  g.select(".line")
+      .attr("d", function(d) { return line(d.values); });
+
+  area
+      .y0(height)
+      .y1(function(d) { return y(d.y); });
+
+  line
+      .y(function(d) { return y(d.y); });
+
+  var t = g.transition()
+      .duration(duration);
+
+  t.select(".area")
+      .style("stroke-opacity", 1)
+      .style("fill", "none") // wrong
+      .attr("d", function(d) { return line(d.values); });
+
+  /*
+  t.select(".area")
+      .attr("d", function(d) { return area(d.values); });
+      */
+
+  svg.selectAll(".symbol2").each(function(s) {
+    d3.select(this).selectAll("g.annot").transition().duration(duration)
+      .attr("transform", function(d) { return standardTranslate(s, d); });
+  });
+
+  currGraph = GraphEnum.LINE;
+}
+
     </script>
-    <button id="stream" onclick="streamgraph()">Stream Graph</button>
-    <button id="stack" onclick="stackedArea()">Stacked Graph</button>
-    <button id="normalized" onclick="normalizedStackedArea()">Normalized Stacked Graph</button>
-    <button id="overlay" onclick="overlappingArea()">Overlayed area Graph</button></br>
+    <button onclick="streamgraph()">Stream Graph</button>
+    <button onclick="stackedArea()">Stacked Graph</button>
+    <button onclick="normalizedStackedArea()">Normalized Stacked Graph</button>
+    <button onclick="overlappingArea()">Overlayed area Graph</button>
+    <button onclick="lineGraph()">Line Graph</button>
   </body>
 </html>
