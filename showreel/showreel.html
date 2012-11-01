@@ -222,7 +222,7 @@ function mouseoverBand(cid) {
     .style("opacity", 0.6);
   svg.selectAll(".legendrow .bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
   svg.selectAll(".legendrow .fgbox").filter(function(s) {return s.cid == cid}).style("opacity", 1.0);
-  svg.selectAll(".pie").filter(function(s) {return s.cid == cid}).style("opacity", 1);
+  svg.selectAll(".pie").filter(function(s) {return s.data.cid == cid}).style("opacity", 1);
   svg.selectAll(".symbol .band").filter(function(s) {return s.cid == cid}).style("opacity", 1);
 }
 
@@ -233,7 +233,7 @@ function mouseoutBand(cid) {
   namebox.style("opacity", 0);
   svg.selectAll(".legendrow .bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0);
   svg.selectAll(".legendrow .fgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
-  svg.selectAll(".pie").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
+  svg.selectAll(".pie").filter(function(s) {return s.data.cid == cid}).style("opacity", 0.6);
   svg.selectAll(".symbol .band").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
 }
 
@@ -489,7 +489,6 @@ function updatePie(symbols, cid) {
     .attr("class", "pie")
     .attr("fill", function(s) {return color(s.data.cid)})
     .attr("transform", "translate("+(width+margin.left+57)+","+(margin.top+margin.bottom+height-margin.right/2-50)+")")
-    .attr("d", arc)
     .each(function(s) {
         this._current = s;
         var cur = d3.select(this);
@@ -498,7 +497,8 @@ function updatePie(symbols, cid) {
         });
   // UPDATE
   pie
-    .style("opacity", function(s) { return s.data.cid == cid ? 1 : 0.6 });
+    .attr("d", arc)
+    .style("opacity", 0.6);
   // EXIT
   pie.exit().remove();
 }
@@ -635,11 +635,11 @@ d3.json(backend + "/view/" + loc, function(heap) {
         }
         svg.selectAll(".talisman").data(bounds).call(postalisman);
         svg.selectAll(".leyline").data(bounds).call(posleyline);
-        //pielayout.value(function(s) {return d3.sum()});
-        piechart = piechart.data(pielayout(slim.map(function (s) {return {cid: s.cid, sumUsage: d3.sum(s.values.slice(bounds[0], bounds[1]+1), function(d) {return d.y})}})));
-        piechart.transition().duration(50).attrTween("d", arcTween);
+        updatePie(slim.map(function (s) {return {cid: s.cid, sumUsage: d3.sum(s.values.slice(bounds[0], bounds[1]+1), function(d) {return d.y})}}));
+        //svg.select(".pie").transition().duration(50).attrTween("d", arcTween);
       }));
 
+/*
   function arcTween(a) {
     var i = d3.interpolate(this._current, a);
     this._current = i(0);
@@ -647,6 +647,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
       return arc(i(t));
     };
   }
+  */
 
   svg.append("g")
     .attr("transform", "translate(0,"+height+")")
