@@ -278,7 +278,7 @@ function updateAnnotations(symbols, dur) {
     .attr("class", "annotBand");
   annotBand.each(function (s,i) {
     // JOIN
-    var annot = d3.select(this).selectAll(".annot").data(s.annotations);
+    var annot = d3.select(this).selectAll(".annot").data(s.annotations, function(a) {return a.tix;});
     // UPDATE
     var params = animateIncremental(dur);
     annot
