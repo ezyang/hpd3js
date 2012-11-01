@@ -68,6 +68,8 @@ svg {
   - disappear captions when they're not around
   - interaction mechanism is not clear about how to interact with the scrubs
   - scrub should have two windows and zoom on the big one
+      --> actually should just use the brush thing
+  - pie doesn't do the right thing
  */
 
 // variable naming convention:
@@ -209,25 +211,30 @@ function standardTranslate(s, d) {
   return "translate("+r[0]+","+r[1]+")";
 }
 
+// use slim otherwise stale copies float around
+// need to use efficient versions otherwise slow down
+
 // mouseoverBand :: Cid -> IO ()
-function mouseoverBand(symbols, cid) {
+function mouseoverBand(cid) {
   if (dragging) return;
   namefield.text(cid2name(cid))
   namebox.style("fill", color(cid))
     .style("opacity", 0.6);
-  updateLegend(symbols, cid);
-  updatePie(symbols, cid);
-  updateAreas(symbols, cid);
+  svg.selectAll(".legendrow .bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
+  svg.selectAll(".legendrow .fgbox").filter(function(s) {return s.cid == cid}).style("opacity", 1.0);
+  svg.selectAll(".pie").filter(function(s) {return s.cid == cid}).style("opacity", 1);
+  svg.selectAll(".symbol .band").filter(function(s) {return s.cid == cid}).style("opacity", 1);
 }
 
 // mouseoutBand :: Cid -> IO ()
-function mouseoutBand(symbols, cid) {
+function mouseoutBand(cid) {
   if (dragging) return;
   namefield.text("")
   namebox.style("opacity", 0);
-  updateLegend(symbols);
-  updatePie(symbols);
-  updateAreas(symbols);
+  svg.selectAll(".legendrow .bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0);
+  svg.selectAll(".legendrow .fgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
+  svg.selectAll(".pie").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
+  svg.selectAll(".symbol .band").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
 }
 
 // xcoord2tix :: Int -> Tix
@@ -244,7 +251,7 @@ function xcoord2tix(xpixel) {
 
 function updateAnnotations(symbols) {
   // JOIN
-  var annotBand = svg.selectAll(".annotBand").data(symbols);
+  var annotBand = svg.selectAll(".annotBand").data(symbols, function(s) {return s.cid});
   annotBand.enter().append("g")
     .attr("class", "annotBand");
   annotBand.each(function (s,i) {
@@ -272,6 +279,8 @@ function updateAnnotations(symbols) {
     // EXIT
     annot.exit().remove();
   });
+  // EXIT
+  annotBand.exit().remove();
 }
 
 var MarkerEnum = {
@@ -377,9 +386,10 @@ function animateIncremental() {
 
 function updateAreas(symbols, cid) {
   // JOIN
-  var symbol = svg.selectAll(".symbol").data(symbols);
+  var symbol = svg.selectAll(".symbol").data(symbols, function(s) {return s.cid});
   symbol.enter().append("g")
     .attr("class", "symbol")
+  symbol.exit().remove();
   // UPDATE
   symbol.each(function(s, i) {
     // JOIN (boring)
@@ -388,14 +398,14 @@ function updateAreas(symbols, cid) {
       .attr("class", "band")
       .style("fill", color(s.cid))
       .on("mouseover", function() {
-        mouseoverBand(symbols, s.cid);
+        mouseoverBand(s.cid);
         updateMarkerSelect({st: MarkerEnum.UNFOCUSED, s: s, mouse: d3.mouse(svg.node())})
       })
       .on("mousemove", function() {
         updateMarkerSelect({st: MarkerEnum.UNFOCUSED, s: s, mouse: d3.mouse(svg.node())})
       })
       .on("mouseout", function() {
-        mouseoutBand(symbols, s.cid);
+        mouseoutBand(s.cid);
         updateMarkerSelect({st: MarkerEnum.HIDDEN})
       })
       .on("click", function() {
@@ -409,20 +419,20 @@ function updateAreas(symbols, cid) {
           updateMarker({st: MarkerEnum.UNFOCUSED, s: s, mouse: mouse});
           interactionMode = InteractEnum.SELECT;
         }
-      })
-      ;
+      });
+    band
+      .style("opacity", s.cid == cid ? 1 : 0.6);
   });
   var params = animateIncremental();
   symbol.transition().duration(params[0])
     .select(".band")
       .delay(params[1])
-      .style("opacity", function (s) { return s.cid == cid ? 1 : 0.6 })
       .attr("d", function(s) { return area(s.values); })
 }
 
 function updateLegend(symbols, cid) {
   // JOIN
-  var legendrow = svg.selectAll(".legendrow").data(symbols);
+  var legendrow = svg.selectAll(".legendrow").data(symbols, function(s) {return s.cid});
   legendrow.enter().append("g")
     .attr("class", "legendrow")
     .each(function(s, i) {
@@ -441,11 +451,20 @@ function updateLegend(symbols, cid) {
         .style("font-size", "12px")
         .text(cid2name(s.cid));
       cur.on("mouseover", function() {
-        mouseoverBand(symbols, s.cid);
-        });
-      cur.on("mouseout", function() {
-        mouseoutBand(symbols, s.cid);
-        });
+          mouseoverBand(s.cid);
+        })
+        .on("mouseout", function() {
+          mouseoutBand(s.cid);
+        })
+        .on("click", function() {
+          slim = [s];
+          updateAreas(slim);
+          updateAnnotations(slim);
+          updateLegend(slim);
+          updatePie(slim);
+          stackedArea();
+        })
+        ;
     });
   // UPDATE
   legendrow
@@ -456,6 +475,8 @@ function updateLegend(symbols, cid) {
   legendrow.selectAll(".fgbox")
     .style("fill", function (s) { return color(s.cid) })
     .style("opacity", function (s) { return s.cid == cid ? 1 : 0.6 });
+  // EXIT
+  legendrow.exit().transition().duration(duration).style("opacity", 0).remove();
 }
 
 function updatePie(symbols, cid) {
@@ -463,7 +484,7 @@ function updatePie(symbols, cid) {
   var arc = d3.svg.arc().innerRadius(margin.right/2-50).outerRadius(margin.right/2-10);
   // JOIN
   var pie = svg.selectAll(".pie")
-    .data(pielayout(symbols));
+    .data(pielayout(symbols), function(s) {return s.data.cid});
   pie.enter().append("path")
     .attr("class", "pie")
     .attr("fill", function(s) {return color(s.data.cid)})
@@ -472,12 +493,14 @@ function updatePie(symbols, cid) {
     .each(function(s) {
         this._current = s;
         var cur = d3.select(this);
-        cur.on("mouseover", function() {mouseoverBand(symbols, s.data.cid)})
-           .on("mouseout", function() {mouseoutBand(symbols, s.data.cid)});
+        cur.on("mouseover", function() {mouseoverBand(s.data.cid)})
+           .on("mouseout", function() {mouseoutBand(s.data.cid)});
         });
   // UPDATE
   pie
     .style("opacity", function(s) { return s.data.cid == cid ? 1 : 0.6 });
+  // EXIT
+  pie.exit().remove();
 }
 
 // ----------------------------------------------------------------------------
@@ -701,16 +724,8 @@ function normalizedStackedArea() {
       .y0(function(d,i) { return y(d.y0/aggregate[i].y); })
       .y1(function(d,i) { return y((d.y0 + d.y)/aggregate[i].y); });
 
-  var t = svg.selectAll(".symbol").transition()
-        .duration(duration/2);
-
-  t.select("path.band")
-    .style("fill-opacity", 1)
-    .attr("d", function(d) { return area(d.values); });
-  svg.selectAll(".annotBand").each(function(s,i) {
-    d3.select(this).selectAll("g.annot").transition().duration(duration/2)
-    .attr("transform", function(d) { return standardTranslate(s,d) });
-  });
+  updateAreas(slim);
+  updateAnnotations(slim);
   currGraph = GraphEnum.NORMALIZED;
 }
 
@@ -737,22 +752,8 @@ function streamgraph() {
       .y0(function(d) { return y(d.y0); })
       .y1(function(d) { return y(d.y0 + d.y); });
 
-  var t = svg.selectAll(".symbol").transition()
-      .duration(duration);
-
-  t.select("path.band")
-      .attr("d", function(d) { return area(d.values); });
-
-  t.select("path.line")
-      .style("stroke-opacity", 1e-6)
-      .attr("d", function(d) { return line(d.values); });
-  t.select(".band")
-      .style("fill-opacity", 1)
-      .attr("d", function(d) { return area(d.values); });
-  svg.selectAll(".annotBand").each(function(s) {
-    d3.select(this).selectAll("g.annot").transition().duration(duration)
-      .attr("transform", function(d) { return standardTranslate(s, d); });
-  });
+  updateAreas(slim);
+  updateAnnotations(slim);
   currGraph = GraphEnum.STREAM;
 }
 
@@ -784,78 +785,9 @@ function overlappingArea() {
   var t = g.transition()
       .duration(duration);
 
-  t.select(".line")
-      .style("stroke-opacity", 1)
-      .attr("d", function(d) { return line(d.values); });
-
-  t.select(".band")
-      //.style("fill-opacity", .5)
-      .attr("d", function(d) { return area(d.values); });
-
-  svg.selectAll(".annotBand").each(function(s) {
-    d3.select(this).selectAll("g.annot").transition().duration(duration)
-      .attr("transform", function(d) { return standardTranslate(s, d); });
-  });
-
-  /*
-  svg.append("line")
-      .attr("class", "line")
-      .attr("x1", 0)
-      .attr("x2", width - 60)
-      .attr("y1", height)
-      .attr("y2", height)
-      .style("stroke-opacity", 1e-6)
-      .transition()
-      .duration(duration)
-      .style("stroke-opacity", 1);
-      */
+  updateAreas(slim);
+  updateAnnotations(slim);
   currGraph = GraphEnum.OVERLAY;
-}
-
-function lineGraph() {
-  reset();
-  nextGraph = GraphEnum.LINE;
-  var g = svg.selectAll(".symbol");
-
-  y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y + d.y0; }))])
-  yaxisbox.call(yaxis);
-
-  slim.forEach(function(s) {
-      s.values.forEach(function(d) {d.y0 = 0;});
-  });
-
-  line
-      .y(function(d) { return y(d.y0 + d.y); });
-
-  g.select(".line")
-      .attr("d", function(d) { return line(d.values); });
-
-  area
-      .y0(height)
-      .y1(function(d) { return y(d.y); });
-
-  line
-      .y(function(d) { return y(d.y); });
-
-  var t = g.transition()
-      .duration(duration);
-
-  t.select(".band")
-      .style("stroke-opacity", 1)
-      .style("fill", "none") // wrong
-      .attr("d", function(d) { return line(d.values); });
-
-  /*
-  t.select(".band")
-      .attr("d", function(d) { return area(d.values); });
-      */
-
-  svg.selectAll(".annotBand").each(function(s) {
-    d3.select(this).selectAll("g.annot").transition().duration(duration)
-      .attr("transform", function(d) { return standardTranslate(s, d); });
-  });
-
-  currGraph = GraphEnum.LINE;
 }
 
     </script>
