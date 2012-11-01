@@ -175,6 +175,7 @@ function mouseoverBand(cid) {
     .style("opacity", 0.6);
   rows.selectAll(".bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
   rows.selectAll(".fgbox").filter(function(s) {return s.cid == cid}).style("opacity", 1);
+  pie.selectAll(".arc").filter(function(s) {return s.data.cid == cid}).style("opacity", 1);
   svg.selectAll(".area").filter(function(s) {return s.cid == cid}).style("opacity", 1);
 }
 
@@ -183,6 +184,7 @@ function mouseoutBand(cid) {
   namebox.style("opacity", 0);
   rows.selectAll(".bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0);
   rows.selectAll(".fgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
+  pie.selectAll(".arc").filter(function(s) {return s.data.cid == cid}).style("opacity", 0.6);
   svg.selectAll(".area").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
 }
 
@@ -197,6 +199,8 @@ function xcoord2tix(xpixel) {
 
 var yaxisbox;
 var rows;
+var legend;
+var pie;
 
 d3.json(backend + "/view/" + loc, function(heap) {
   symbols = heap.data;
@@ -316,7 +320,8 @@ d3.json(backend + "/view/" + loc, function(heap) {
           if (interactionMode != InteractEnum.SELECT) {
             marker.transition().duration(duration/8)
               .attr("r", annotCircleUnfocusR)
-              .style("fill", "#000");
+              .style("fill", "#000")
+              .style("stroke-width", "0");
             interactionMode = InteractEnum.SELECT;
             form.transition().duration(duration/8)
               .style("opacity", 0)
@@ -330,6 +335,8 @@ d3.json(backend + "/view/" + loc, function(heap) {
           var r = calcCoords(s, xcoord2tix(mouseinfo));
           marker.transition().duration(duration/4)
             .attr("r", annotCircleR)
+            .style("stroke-width", "2px")
+            .style("stroke", "#000")
             .style("fill", d3.hsl(color(s.cid)).darker())
             .attr("cx", r[0]).attr("cy", r[1]);
           form = svg.append("foreignObject");
@@ -420,6 +427,24 @@ d3.json(backend + "/view/" + loc, function(heap) {
         mouseoutBand(s.cid);
         });
   });
+
+  // pie chart
+  pie = svg.append("g")
+    .attr("transform", "translate("+(width+margin.left+50)+","+(margin.top+margin.bottom+height-margin.right/2-50)+")");
+  var pielayout = d3.layout.pie().value(function(s) {return s.sumUsage;}).sort(null);
+  var arc = d3.svg.arc().innerRadius(margin.right/2-50).outerRadius(margin.right/2-10);
+  pie.selectAll("path")
+    .data(pielayout(symbols))
+    .enter().append("path")
+    .attr("fill", function(s) {return color(s.data.cid)})
+    .attr("class", "arc")
+    .attr("d", arc)
+    .style("opacity", 0.6)
+    .each(function(s) {
+        var cur = d3.select(this);
+        cur.on("mouseover", function() {mouseoverBand(s.data.cid)})
+           .on("mouseout", function() {mouseoutBand(s.data.cid)});
+        });
 
   setTimeout(function () { stackedArea(); first = false; }, 0);
 
