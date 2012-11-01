@@ -86,7 +86,7 @@ var showbands = 10; // how many bands to show (the last band will be "OTHER")
 
 var margin = {top: 30, right: 200, bottom: 40, left: 50},
     width = 800 - margin.right - margin.left,
-    height = 550 - margin.top - margin.bottom;
+    height = 500 - margin.top - margin.bottom;
 
 var duration = 1500,
     delay = 500;
@@ -143,6 +143,8 @@ var symbols,   // :: [Series] -- index is Cid
 
 var slim,      // :: [Series] -- index is NOT Cid
     others;    // :: [Series] -- ditto
+
+var shistory = []; // :: [[Series, Series]] -- left is "active", right is "other"
 
 var aggregate; // :: [{y :: Int}]
 
@@ -462,7 +464,13 @@ function updateLegend(symbols, dur) {
           mouseoutBand(s.cid);
         })
         .on("click", function() {
-          slim = [s];
+          if (s.cid >= 0) {
+            shistory.push([slim,others]);
+            slim = [s];
+            others = [];
+          } else {
+            zoomdown();
+          }
           singleband = true;
           namefield.text(cid2name(s.cid))
           namebox.style("fill", color(s.cid))
@@ -480,7 +488,7 @@ function updateLegend(symbols, dur) {
     .transition()
     .duration(dur/2)
     .delay(dur/2)
-    .attr("transform", function (s,i) { return "translate(" + (width + 20) + ", "+ (margin.top + i * 22) +")" });
+    .attr("transform", function (s,i) { return "translate(" + (width + 20) + ", "+ (i * 22) +")" });
   legendrow.selectAll(".bgbox")
     .style("fill", function(s) { return color(s.cid) })
     .style("opacity", 0);
@@ -535,6 +543,30 @@ function updatePie(symbols, dur) {
 // ----------------------------------------------------------------------------
 // Load the data!
 
+function zoomdown() {
+  shistory.push([slim, others]);
+
+  slim = others.slice(0);
+  slim.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
+
+  // we can't render everything, so split it up
+  var high = slim.splice(0, showbands - 1);
+  if (slim.length) {
+    var s = {
+      cid: -1,
+      values: sumColumns(slim),
+      annotations: []
+    };
+    s.maxUsage = d3.max(s.values, function(d) { return d.y; });
+    s.sumUsage = d3.sum(s.values, function(d) { return d.y; });
+    high.push(s);
+  }
+  others = slim; // save 'em up
+  slim = high;
+  // other might be a big band, so re-sort!
+  slim.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
+}
+
 d3.json(backend + "/view/" + loc, function(heap) {
   symbols   = heap.data;
   timetable = heap.timetable;
@@ -562,28 +594,11 @@ d3.json(backend + "/view/" + loc, function(heap) {
     s.sumUsage = d3.sum(s.values, function(d) { return d.y; });
   });
 
-  slim = symbols.slice(0);
-  slim.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
-
-  // we can't render everything, so split it up
-  var high = slim.splice(0, showbands - 1);
-  if (slim.length) {
-    var s = {
-      cid: -1,
-      values: sumColumns(slim),
-      annotations: []
-    };
-    s.maxUsage = d3.max(s.values, function(d) { return d.y; });
-    s.sumUsage = d3.sum(s.values, function(d) { return d.y; });
-    high.push(s);
-  }
-  others = slim; // save 'em up
-  slim = high;
-  // other might be a big band, so re-sort!
-  slim.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
-
   // symbols is the original data, slice is the new data; probably
   // this computation needs to be factored out...
+  slim = [];
+  others = symbols;
+  zoomdown();
 
   // aggregate counts for pie chart
   aggregate = sumColumns(slim); // XXX eliminate me
