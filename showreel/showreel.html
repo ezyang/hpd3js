@@ -461,7 +461,7 @@ function updateLegend(symbols, cid) {
           updateAreas(slim);
           updateAnnotations(slim);
           updateLegend(slim);
-          updatePie(slim);
+          updatePie(slim, duration);
           stackedArea();
         })
         ;
@@ -479,9 +479,11 @@ function updateLegend(symbols, cid) {
   legendrow.exit().transition().duration(duration).style("opacity", 0).remove();
 }
 
-function updatePie(symbols, cid) {
+function updatePie(symbols, duration) {
   var pielayout = d3.layout.pie().value(function(s) {return s.sumUsage;}).sort(null);
-  var arc = d3.svg.arc().innerRadius(margin.right/2-50).outerRadius(margin.right/2-10);
+  var inr  = margin.right/2-50;
+  var outr = margin.right/2-10;
+  var arc = d3.svg.arc().innerRadius(inr).outerRadius(outr);
   // JOIN
   var pie = svg.selectAll(".pie")
     .data(pielayout(symbols), function(s) {return s.data.cid});
@@ -497,10 +499,25 @@ function updatePie(symbols, cid) {
         });
   // UPDATE
   pie
-    .attr("d", arc)
-    .style("opacity", 0.6);
+    .style("opacity", 0.6)
+    .transition().duration(duration).attrTween("d", arcTween);
   // EXIT
-  pie.exit().remove();
+  pie.exit().transition().duration(duration/2).attrTween("d", arcOut).style("opacity", 0).remove();
+
+  function arcTween(a) {
+    var i = d3.interpolate(this._current, a);
+    this._current = i(0);
+    return function(t) {
+      return arc(i(t));
+    };
+  }
+  function arcOut(a) {
+    var current = this._current;
+    var i = d3.interpolate(inr, outr);
+    return function(t) {
+      return (d3.svg.arc().innerRadius(i(t)).outerRadius(i(t)-inr+outr))(current);
+    };
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -635,19 +652,8 @@ d3.json(backend + "/view/" + loc, function(heap) {
         }
         svg.selectAll(".talisman").data(bounds).call(postalisman);
         svg.selectAll(".leyline").data(bounds).call(posleyline);
-        updatePie(slim.map(function (s) {return {cid: s.cid, sumUsage: d3.sum(s.values.slice(bounds[0], bounds[1]+1), function(d) {return d.y})}}));
-        //svg.select(".pie").transition().duration(50).attrTween("d", arcTween);
+        updatePie(slim.map(function (s) {return {cid: s.cid, sumUsage: d3.sum(s.values.slice(bounds[0], bounds[1]+1), function(d) {return d.y})}}), 0);
       }));
-
-/*
-  function arcTween(a) {
-    var i = d3.interpolate(this._current, a);
-    this._current = i(0);
-    return function(t) {
-      return arc(i(t));
-    };
-  }
-  */
 
   svg.append("g")
     .attr("transform", "translate(0,"+height+")")
