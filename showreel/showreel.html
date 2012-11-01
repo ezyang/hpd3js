@@ -64,6 +64,7 @@ svg {
   - delete annotation by clearing contents
   - annotation edits don't work
   - axes sometimes don't render properly on refresh
+  - cannot save annotations to other
  */
 
 // variable naming convention:
@@ -136,6 +137,8 @@ var pie;      // pie chart on bottom right
 var symbols,   // :: [Series] -- index is NOT Cid
     nametable, // :: [String] -- index is Cid
     timetable; // :: [Double] -- index is Tix
+
+var others;    // :: [Series]
 
 var aggregate; // :: [{y :: Int}]
 
@@ -236,7 +239,7 @@ function xcoord2tix(xpixel) {
 // Load the data!
 
 d3.json(backend + "/view/" + loc, function(heap) {
-  symbols = heap.data;
+  symbols   = heap.data;
   timetable = heap.timetable;
   nametable = heap.nametable;
 
@@ -245,16 +248,21 @@ d3.json(backend + "/view/" + loc, function(heap) {
                        .domain([tix2time(0), tix2time(timetable.length-1)]); // XXX modify me if we do vertical scrub
   y = d3.scale.linear().range([height, 0]).domain([0,0]);
 
-  // A line generator, for the dark stroke.
+  // some generators
   line = d3.svg.line()
       .interpolate(interpol)
       .x(function(d,i) { return x(tix2time(i)); })
       .y(function(d) { return y(d.y); });
 
-  // An axis generator, for the dark stroke.
+  area = d3.svg.area()
+      .interpolate(interpol)
+      .x(function(d,i) { return x(tix2time(i)); })
+      .y(height)
+
+  // some axes
   xaxis = d3.svg.axis()
-  .scale(x)
-  .orient("bottom");
+    .scale(x)
+    .orient("bottom");
 
   svg.append("g")
     .attr("transform", "translate(0,"+height+")")
@@ -270,42 +278,39 @@ d3.json(backend + "/view/" + loc, function(heap) {
     .attr("class", "axis")
     .call(yaxis);
 
-  // A area generator, for the dark stroke.
-  area = d3.svg.area()
-      .interpolate(interpol)
-      .x(function(d,i) { return x(tix2time(i)); })
-      .y(height)
-
+  // some extra calculations
   symbols.forEach(function(s) {
     s.maxUsage = d3.max(s.values, function(d) { return d.y; });
     s.sumUsage = d3.sum(s.values, function(d) { return d.y; });
   });
   symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 
-  // Separate high and low contributors
+  // we can't render everything, so split it up
   var high = symbols.splice(0, showbands - 1);
   if (symbols.length) {
-    // XXX saving annotations for other don't really work
     var s = {
-           cid: -1,
-           values: sumColumns(symbols),
-           annotations: []
+      cid: -1,
+      values: sumColumns(symbols),
+      annotations: []
     };
     s.maxUsage = d3.max(s.values, function(d) { return d.y; });
     s.sumUsage = d3.sum(s.values, function(d) { return d.y; });
     high.push(s);
   }
+  others = symbols; // save 'em up
   symbols = high;
   // other might be a big band, so re-sort!
+  // XXX more efficient to just bisect it in?
   symbols.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 
+  // aggregate counts for pie chart
   aggregate = sumColumns(symbols);
 
   // function because we can add new annotations on response to user input
   function doAnnotations(el, s) {
     var p = d3.select(el).selectAll(".annot")
       .data(s.annotations);
-    p.exit().remove();
+    p.selectAll("text").text(function (a) { return a.text; });
     var m = p.enter().insert("g").attr("class", "annot")
       .attr("transform", function(d) { return standardTranslate(s, d); });
     m.insert("circle")
@@ -314,7 +319,10 @@ d3.json(backend + "/view/" + loc, function(heap) {
     m.insert("text")
       .attr("transform", function() { return "translate(9,5)" }) // slight offset
       .text(function (a) { return a.text; });
+    p.exit().remove();
   }
+
+  // several layers so we get things to z-index properly
 
   var g = svg.selectAll("g.symbol")
       .data(symbols)
@@ -328,7 +336,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
         .attr("class", "area")
         .style("fill", color(s.cid))
         .style("opacity", 0.6)
-        .attr("d", function(irrelevant) { return area(s.values); })
+        .attr("d", function(d) { return area(s.values); })
       .on("mouseover", function() {
         mouseoverBand(s.cid);
         if (interactionMode == InteractEnum.SELECT) {
@@ -338,7 +346,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
       .on("mousemove", function() {
         if (interactionMode == InteractEnum.SELECT) {
           var r = calcCoords(s, xcoord2tix(d3.mouse(svg.node())[0]));
-          marker.attr("cx", r[0]).attr("cy", r[1]); // transition?
+          marker.attr("cx", r[0]).attr("cy", r[1]);
         };
       })
       .on("mouseout", function() {
@@ -348,7 +356,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
         }
       })
       .on("click", function() {
-        var mouseinfo = d3.mouse(svg.node())[0];
+        // Removes any form entry
         function blurit() {
           if (interactionMode != InteractEnum.SELECT) {
             marker.transition().duration(duration/8)
@@ -365,7 +373,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
         if (interactionMode == InteractEnum.SELECT) {
           var xcoord = xcoord2tix(d3.mouse(svg.node())[0]);
           interactionMode = InteractEnum.ENTRY;
-          var r = calcCoords(s, xcoord2tix(mouseinfo));
+          var r = calcCoords(s, xcoord2tix(d3.mouse(svg.node())[0]));
           marker.transition().duration(duration/4)
             .attr("r", annotCircleR)
             .style("stroke-width", "2px")
@@ -378,9 +386,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
           // XXX blah
           var actualnode = svg.selectAll("g.symbol2").filter(function (x,j) { return i == j; }).node();
           if (theannot.length) {
-            //s.annotations.splice(s.annotations.indexOf(theannot[0]), 1); // XXX lol
             input.node().value = theannot[0].text;
-            //doAnnotations(actualnode, s);
           }
           input.attr("type", "text")
             .on("keyup", function() {
@@ -392,7 +398,14 @@ d3.json(backend + "/view/" + loc, function(heap) {
                   f4: text
                   }, function() {
                     blurit();
-                    s.annotations.push({tix: xcoord, text: text });
+                    var done = false;
+                    s.annotations.forEach(function(a) {
+                      if (a.tix == xcoord) {
+                        a.text = text;
+                        done = true;
+                      }
+                    });
+                    if (!done) s.annotations.push({tix: xcoord, text: text });
                     doAnnotations(actualnode, s);
                   });
               }
