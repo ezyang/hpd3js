@@ -79,7 +79,7 @@ svg {
 var interpol = "linear"; // "basis" will cause problems with annotation placement
 var showbands = 10; // how many bands to show (the last band will be "OTHER")
 
-var margin = {top: 30, right: 200, bottom: 25, left: 50},
+var margin = {top: 30, right: 200, bottom: 40, left: 50},
     width = 800 - margin.right - margin.left,
     height = 550 - margin.top - margin.bottom;
 
@@ -258,25 +258,6 @@ d3.json(backend + "/view/" + loc, function(heap) {
       .interpolate(interpol)
       .x(function(d,i) { return x(tix2time(i)); })
       .y(height)
-
-  // some axes
-  xaxis = d3.svg.axis()
-    .scale(x)
-    .orient("bottom");
-
-  svg.append("g")
-    .attr("transform", "translate(0,"+height+")")
-    .attr("class", "axis")
-    .call(xaxis);
-
-  yaxis = d3.svg.axis()
-    .scale(y)
-    .tickFormat(d3.format("s"))
-    .orient("left");
-
-  yaxisbox = svg.append("g")
-    .attr("class", "axis")
-    .call(yaxis);
 
   // some extra calculations
   symbols.forEach(function(s) {
@@ -489,6 +470,69 @@ d3.json(backend + "/view/" + loc, function(heap) {
         cur.on("mouseover", function() {mouseoverBand(s.data.cid)})
            .on("mouseout", function() {mouseoutBand(s.data.cid)});
         });
+
+  // some axes
+  xaxis = d3.svg.axis()
+    .scale(x)
+    .orient("bottom");
+
+  var bounds = [0, width];
+  var vlines = svg.append("g").selectAll(".leyline")
+    .data(bounds)
+    .enter();
+  function posleyline(m) {
+    m.attr("x", function(d,i) {return i ? d+2 : 0})
+     .attr("width", function(d,i) {return i ? (width-d-2) : d});
+  }
+  function postalisman(m) {
+    m.attr("transform", function(d) {return "translate("+d+","+(height+30)+")";});
+  }
+  vlines.append("rect")
+    .attr("class", "leyline")
+    .attr("enable-background", "new")
+    .style("fill", "#555")
+    .style("opacity", 0.7)
+    .attr("y", 0)
+    .attr("height", height)
+    .call(posleyline);
+  vlines.append("path")
+      .attr("class", "talisman")
+      .style("opacity", 0.7)
+      .call(postalisman)
+      .attr("d", d3.svg.symbol().type("triangle-up").size(100))
+      .on("dblclick", function() {
+        bounds = [0, width];
+        svg.selectAll(".talisman").data(bounds).call(postalisman);
+        svg.selectAll(".leyline").data(bounds).call(posleyline);
+      })
+      .call(d3.behavior.drag().on("drag", function(d,i) {
+        var tix = xcoord2tix(d3.mouse(svg.node())[0]);
+        var xcoord = x(timetable[tix]);
+        if (bounds[0] == bounds[1]) {
+          bounds[1] = xcoord;
+          bounds[0] = xcoord;
+        } else if (i == 0 && xcoord > bounds[1] || i == 1 && xcoord < bounds[0]) {
+          return;
+        } else {
+          bounds[i] = xcoord;
+        }
+        svg.selectAll(".talisman").data(bounds).call(postalisman);
+        svg.selectAll(".leyline").data(bounds).call(posleyline);
+      }));
+
+  svg.append("g")
+    .attr("transform", "translate(0,"+height+")")
+    .attr("class", "axis")
+    .call(xaxis);
+
+  yaxis = d3.svg.axis()
+    .scale(y)
+    .tickFormat(d3.format("s"))
+    .orient("left");
+
+  yaxisbox = svg.append("g")
+    .attr("class", "axis")
+    .call(yaxis);
 
   // alright, render time!
   setTimeout(function () { stackedArea(); first = false; }, 0);
@@ -731,6 +775,7 @@ function lineGraph() {
     <button onclick="stackedArea()">Stacked Graph</button>
     <button onclick="normalizedStackedArea()">Normalized Stacked Graph</button>
     <button onclick="overlappingArea()">Overlayed area Graph</button>
-    <!--<button onclick="lineGraph()">Line Graph</button>-->
+    <!--<button onclick="lineGraph()">Line Graph</button>--><br />
+    Double click to reset bounds
   </body>
 </html>
