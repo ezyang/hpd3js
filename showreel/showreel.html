@@ -69,7 +69,7 @@ var tooltip = d3.select("body")
     .attr("class", "tooltip")
     .style("visibility", "hidden");
 
-var margin = {top: 10, right: 10, bottom: 10, left: 10},
+var margin = {top: 10, right: 200, bottom: 10, left: 0},
     width = 800 - margin.right - margin.left,
     height = 500 - margin.top - margin.bottom;
 
@@ -154,7 +154,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
   nametable = heap.nametable;
 
   // domains are data dependent, calculated later
-  x = d3.scale.linear().range([0, width - 60])
+  x = d3.scale.linear().range([0, width])
                        .domain([tix2time(0), tix2time(timetable.length-1)]); // XXX modify me if we do vertical scrub
   y = d3.scale.linear().range([height, 0]);
 
@@ -340,6 +340,27 @@ d3.json(backend + "/view/" + loc, function(heap) {
     .attr("r", annotCircleUnfocusR)
     .style("fill", "#000")
     .style("opacity", 0.7); // css-ize me
+
+  // legend
+  legend = svg.append("g")
+    .attr("transform", "translate(" + (width + 20) + ","+margin.top+")");
+  var rows = legend.selectAll("g.legendrow")
+    .data(symbols)
+    .enter().append("g")
+    .attr("class", "legendrow")
+    .attr("transform", function (s,i) { return "translate(0, "+ (i * 22) +")" });
+  rows.each(function(s, i) {
+      var cur = d3.select(this);
+      cur.insert("rect")
+        .attr("r", 4)
+        .attr("width", "20")
+        .attr("height", "20")
+        .style("fill", color(s.cid));
+      cur.insert("text")
+        .attr("transform", "translate(22,13)")
+        .style("font-size", "12px")
+        .text(cid2name(s.cid));
+  });
 
   setTimeout(function () { stackedArea(); first = false; }, 0);
 
