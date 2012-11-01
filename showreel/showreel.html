@@ -118,7 +118,6 @@ var namefield = namegroup.append("text")
 
 var form;     // form element used to submit annotations
 var yaxisbox; // box which contains the y-axis (needs to change)
-var rows;     // rows of the legend on the right
 var pie;      // pie chart on bottom right
 
 // ----------------------------------------------------------------------------
@@ -210,24 +209,22 @@ function standardTranslate(s, d) {
 }
 
 // mouseoverBand :: Cid -> IO ()
-function mouseoverBand(cid) {
+function mouseoverBand(symbols, cid) {
   if (dragging) return;
   namefield.text(cid2name(cid))
   namebox.style("fill", color(cid))
     .style("opacity", 0.6);
-  rows.selectAll(".bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
-  rows.selectAll(".fgbox").filter(function(s) {return s.cid == cid}).style("opacity", 1);
+  updateLegend(symbols, cid);
   pie.selectAll(".arc").filter(function(s) {return s.data.cid == cid}).style("opacity", 1);
   svg.selectAll(".band").filter(function(s) {return s.cid == cid}).style("opacity", 1);
 }
 
 // mouseoutBand :: Cid -> IO ()
-function mouseoutBand(cid) {
+function mouseoutBand(symbols, cid) {
   if (dragging) return;
   namefield.text("")
   namebox.style("opacity", 0);
-  rows.selectAll(".bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0);
-  rows.selectAll(".fgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
+  updateLegend(symbols, -1);
   pie.selectAll(".arc").filter(function(s) {return s.data.cid == cid}).style("opacity", 0.6);
   svg.selectAll(".band").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
 }
@@ -241,29 +238,33 @@ function xcoord2tix(xpixel) {
   return leftCand < 0 || tix2time(rightCand)-xinv < xinv-tix2time(leftCand) ? rightCand : leftCand;
 }
 
-// function because we can add new annotations on response to user input
-// remember that annotations are *per series*
-function updateAnnotations(el, s, annotations) {
-  // JOIN
-  var annot = d3.select(el).selectAll(".annot").data(annotations);
-  annot.enter().append("g")
-    .attr("class", "annot")
-    .attr("transform", function(d) { return standardTranslate(s, d); })
-    .call(function (g) {
-      g.append("circle")
-        .attr("r", annotCircleR)
-        .style("fill", d3.hsl(color(s.cid)).darker())
-      g.append("text")
-        .attr("transform", function() { return "translate(9,5)" }); // slight offset
-    });
-  // UPDATE
-  annot.selectAll("text").text(function (a) { return a.text; });
-  // EXIT
-  annot.exit().remove();
-}
-
 // ----------------------------------------------------------------------------
 // Update functions; the workhorses
+
+function updateAnnotations(symbols) {
+  // JOIN
+  var annotBand = svg.selectAll(".annotBand").data(symbols);
+  annotBand.enter().append("g")
+    .attr("class", "annotBand");
+  annotBand.each(function (s) {
+    // JOIN
+    var annot = d3.select(this).selectAll(".annot").data(s.annotations);
+    annot.enter().append("g")
+      .attr("class", "annot")
+      .attr("transform", function(d) { return standardTranslate(s, d); })
+      .call(function (g) {
+        g.append("circle")
+          .attr("r", annotCircleR)
+          .style("fill", d3.hsl(color(s.cid)).darker())
+        g.append("text")
+          .attr("transform", function() { return "translate(9,5)" }); // slight offset
+      });
+    // UPDATE
+    annot.selectAll("text").text(function (a) { return a.text; });
+    // EXIT
+    annot.exit().remove();
+  });
+}
 
 var MarkerEnum = {
   HIDDEN: 0,
@@ -299,47 +300,63 @@ function updateMarker(md) {
 function updateForm(fi) {
   // JOIN
   var annotForm = svg.selectAll(".annotForm").data(fi ? d3.range(1) : d3.range(0));
+  var r = fi ? calcCoords(fi.s, fi.tix) : [0,0]; // hope these doesn't fuck me over too bad
   annotForm.enter().append("foreignObject")
+    .attr("class", "annotForm")
+    .attr("width", 250)
+    .attr("height", "1.5em")
+    .attr("x", r[0])
+    .attr("y", r[1])
+    .style("opacity", 0)
     .call(function(fo) {
-      var input = fo.append("xhtml:input");
-      var old = fi.s.annotations.filter(function(a) {return a.tix == fi.tix});
-      if (old.length) { // XXX there should only be one
-        input.node().value = old[0].text;
-      }
-      input.attr("type", "text")
+      var old;
+      var input = fo.append("xhtml:input").attr("type", "text")
+        .each(function(inp) { // not guaranteed to exist!
+          d3.select(this).node().focus();
+          old = fi.s.annotations.filter(function(a) {return a.tix == fi.tix});
+          // use the source here
+          if (old.length) { // XXX there should only be one
+            d3.select(this).node().value = old[0].text;
+          }
+        })
         .on("keyup", function() {
           if (d3.event.keyCode == 13) { // ENTER
             var text = input.node().value;
             $.post(backend + "/annotate/" + loc, {
-              f2: s.cid,
-              f3: xcoord,
+              f2: fi.cid,
+              f3: fi.tix,
               f4: text
               }, function() {
-                blurit();
                 var done = false;
-                s.annotations.forEach(function(a) {
-                  if (a.tix == xcoord) {
-                    a.text = text;
-                    done = true;
-                  }
-                });
-                if (!done) s.annotations.push({tix: xcoord, text: text });
-                // XXX blah
-                var actualnode = svg.selectAll("g.symbol2").filter(function (x,j) { return i == j; }).node();
-                updateAnnotations(actualnode, s, s.annotations);
+                if (old.length) {
+                  old[0].text = text;
+                } else {
+                  fi.s.annotations.push({tix: fi.tix, text: text });
+                }
+                updateAnnotations(slim);
+                var r = calcCoords(fi.s, fi.tix);
+                updateMarker({st: MarkerEnum.UNFOCUSED, x: r[0], y: r[1]});
+                updateForm(false);
+                interactionMode = InteractEnum.SELECT;
               });
-          }
-        })
-        .on("blur", function() { setTimeout(blurit, 200); }); // force it to run after
-    });
-
-          var r = calcCoords(s, xcoord);
-          form.attr("width", 250).attr("height", "1.5em").style("opacity", 0)
-            .attr("x", r[0]).attr("y", r[1])
-            .style("visibility", "visible")
-            .transition().duration(duration/4)
-            .style("opacity", 1);
-          form.select("input").node().focus();
+            }
+          })
+        .on("blur", function() {
+          setTimeout(function() {
+            if (interactionMode != InteractEnum.SELECT) {
+              updateMarker({st: MarkerEnum.HIDDEN});
+              updateForm(false);
+              interactionMode = InteractEnum.SELECT;
+            }
+          }, 200); // force it to run after
+        });
+      })
+    .transition().duration(duration/4)
+    .style("opacity", 1);
+  // EXIT
+  annotForm.exit().transition().duration(duration/8)
+    .style("opacity", 0)
+    .remove();
 }
 
 function updateAreas(symbols) {
@@ -357,77 +374,68 @@ function updateAreas(symbols) {
       .style("fill", color(s.cid))
       .style("opacity", 0.6)
       .on("mouseover", function() {
-        mouseoverBand(s.cid);
+        mouseoverBand(symbols, s.cid);
         updateMarkerSelect({st: MarkerEnum.UNFOCUSED, s: s, mouse: d3.mouse(svg.node())})
       })
       .on("mousemove", function() {
         updateMarkerSelect({st: MarkerEnum.UNFOCUSED, s: s, mouse: d3.mouse(svg.node())})
       })
       .on("mouseout", function() {
-        mouseoutBand(s.cid);
+        mouseoutBand(symbols, s.cid);
         updateMarkerSelect({st: MarkerEnum.HIDDEN})
       })
       .on("click", function() {
-        // Removes any form entry
         var mouse = d3.mouse(svg.node());
-        function blurit() {
-          if (interactionMode != InteractEnum.SELECT) {
-            updateMarker({st: MarkerEnum.UNFOCUSED, s: s, mouse: mouse});
-            interactionMode = InteractEnum.SELECT;
-            form.transition().duration(duration/8)
-              .style("opacity", 0)
-              .remove();
-            form = null;
-          }
-        }
         if (interactionMode == InteractEnum.SELECT) {
           updateMarker({st: MarkerEnum.FOCUSED, s: s, mouse: mouse});
+          updateForm({cid: s.cid, tix: xcoord2tix(mouse[0]), s: s});
           interactionMode = InteractEnum.ENTRY;
-          var xcoord = xcoord2tix(d3.mouse(svg.node())[0]);
-          form = svg.append("foreignObject");
-          var input = form.append("xhtml:input");
-          var theannot = s.annotations.filter(function(a) {return a.tix == xcoord});
-          // XXX blah
-          var actualnode = svg.selectAll("g.symbol2").filter(function (x,j) { return i == j; }).node();
-          if (theannot.length) {
-            input.node().value = theannot[0].text;
-          }
-          input.attr("type", "text")
-            .on("keyup", function() {
-              if (d3.event.keyCode == 13) { // ENTER
-              var text = input.node().value;
-              $.post(backend + "/annotate/" + loc, {
-                  f2: s.cid,
-                  f3: xcoord,
-                  f4: text
-                  }, function() {
-                    blurit();
-                    var done = false;
-                    s.annotations.forEach(function(a) {
-                      if (a.tix == xcoord) {
-                        a.text = text;
-                        done = true;
-                      }
-                    });
-                    if (!done) s.annotations.push({tix: xcoord, text: text });
-                    updateAnnotations(actualnode, s, s.annotations);
-                  });
-              }
-            })
-            .on("blur", function() { setTimeout(blurit, 200); }); // force it to run after
-          var r = calcCoords(s, xcoord);
-          form.attr("width", 250).attr("height", "1.5em").style("opacity", 0)
-            .attr("x", r[0]).attr("y", r[1])
-            .style("visibility", "visible")
-            .transition().duration(duration/4)
-            .style("opacity", 1);
-          form.select("input").node().focus();
         } else if (interactionMode == InteractEnum.ENTRY) {
-          blurit();
+          updateForm(false);
+          updateMarker({st: MarkerEnum.UNFOCUSED, s: s, mouse: mouse});
+          interactionMode = InteractEnum.SELECT;
         }
       })
       ;
   });
+}
+
+function updateLegend(symbols, cid) {
+  // JOIN
+  var legendrow = svg.selectAll(".legendrow").data(symbols);
+  legendrow.enter().append("g")
+    .attr("class", "legendrow")
+    .each(function(s, i) {
+      var cur = d3.select(this);
+      cur.insert("rect")
+        .attr("class", "bgbox")
+        .attr("height", "22")
+        .attr("width", margin.right-3)
+        .attr("transform", "translate(-1,-1)")
+      cur.insert("rect")
+        .attr("class", "fgbox")
+        .attr("width", "20")
+        .attr("height", "20")
+      cur.insert("text")
+        .attr("transform", "translate(22,13)")
+        .style("font-size", "12px")
+        .text(cid2name(s.cid));
+      cur.on("mouseover", function() {
+        mouseoverBand(symbols, s.cid);
+        });
+      cur.on("mouseout", function() {
+        mouseoutBand(symbols, s.cid);
+        });
+    });
+  // UPDATE
+  legendrow
+    .attr("transform", function (s,i) { return "translate(" + (width + 20) + ", "+ (margin.top + i * 22) +")" });
+  legendrow.selectAll(".bgbox")
+    .style("fill", function(s) { return color(s.cid) })
+    .style("opacity", function(s) { return s.cid == cid ? 0.6 : 0 });
+  legendrow.selectAll(".fgbox")
+    .style("fill", function (s) { return color(s.cid) })
+    .style("opacity", function (s) { return s.cid == cid ? 1 : 0.6 });
 }
 
 // ----------------------------------------------------------------------------
@@ -490,58 +498,8 @@ d3.json(backend + "/view/" + loc, function(heap) {
 // Build some stuff
 
   updateAreas(slim);
-
-  // annotations layer
-  var g2 = svg.selectAll("g.symbol2")
-     .data(slim)
-     .enter().append("g").attr("class", "symbol2")
-     .each(function (s) { updateAnnotations(this, s, s.annotations); });
-
-  // legend
-  var legend = svg.append("g")
-    .attr("transform", "translate(" + (width + 20) + "," + margin.top + ")");
-  rows = legend.selectAll("g.legendrow")
-    .data(slim)
-    .enter().append("g")
-    .attr("class", "legendrow")
-    .attr("transform", function (s,i) { return "translate(0, "+ (i * 22) +")" });
-  rows.each(function(s, i) {
-      var cur = d3.select(this);
-      cur.insert("rect")
-        .attr("class", "bgbox")
-        .attr("height", "22")
-        .attr("width", margin.right-3)
-        .attr("transform", "translate(-1,-1)")
-        .style("fill", color(s.cid))
-        .style("opacity", 0);
-      cur.insert("rect")
-        .attr("class", "fgbox")
-        .attr("width", "20")
-        .attr("height", "20")
-        .style("opacity", 0.6)
-        .style("fill", color(s.cid));
-      cur.insert("text")
-        .attr("transform", "translate(22,13)")
-        .style("font-size", "12px")
-        .text(cid2name(s.cid));
-      cur.on("mouseover", function() {
-        mouseoverBand(s.cid);
-        });
-      cur.on("mouseout", function() {
-        mouseoutBand(s.cid);
-        });
-      cur.on("click", function() {
-      /*
-        g.data([s]).exit().remove();
-        g2.data([s]).exit().remove();
-        rows.data([s]).exit().remove();
-        g.transition().duration(duration);
-        g2.transition().duration(duration);
-        rows.transition().duration(duration);
-        stackedArea();
-        */
-      });
-  });
+  updateAnnotations(slim);
+  updateLegend(slim);
 
   // pie chart
   pie = svg.append("g")
@@ -558,8 +516,8 @@ d3.json(backend + "/view/" + loc, function(heap) {
     .each(function(s) {
         this._current = s;
         var cur = d3.select(this);
-        cur.on("mouseover", function() {mouseoverBand(s.data.cid)})
-           .on("mouseout", function() {mouseoutBand(s.data.cid)});
+        cur.on("mouseover", function() {mouseoverBand(slim, s.data.cid)})
+           .on("mouseout", function() {mouseoutBand(slim, s.data.cid)});
         });
 
   // some axes
@@ -710,7 +668,7 @@ function stackedArea() {
     .delay(delayFun)
     .style("fill-opacity", 1)
     .attr("d", function(d) { return area(d.values); });
-  svg.selectAll(".symbol2").each(function(s,i) {
+  svg.selectAll(".annotBand").each(function(s,i) {
     d3.select(this).selectAll("g.annot").transition().duration(duration/2)
       .delay(function () { delayFun(s,i) })
       .attr("transform", function(d) { return standardTranslate(s, d); });
@@ -747,7 +705,7 @@ function normalizedStackedArea() {
   t.select("path.band")
     .style("fill-opacity", 1)
     .attr("d", function(d) { return area(d.values); });
-  svg.selectAll(".symbol2").each(function(s,i) {
+  svg.selectAll(".annotBand").each(function(s,i) {
     d3.select(this).selectAll("g.annot").transition().duration(duration/2)
     .attr("transform", function(d) { return standardTranslate(s,d) });
   });
@@ -787,7 +745,7 @@ function streamgraph() {
   t.select(".band")
       .style("fill-opacity", 1)
       .attr("d", function(d) { return area(d.values); });
-  svg.selectAll(".symbol2").each(function(s) {
+  svg.selectAll(".annotBand").each(function(s) {
     d3.select(this).selectAll("g.annot").transition().duration(duration)
       .attr("transform", function(d) { return standardTranslate(s, d); });
   });
@@ -829,7 +787,7 @@ function overlappingArea() {
       //.style("fill-opacity", .5)
       .attr("d", function(d) { return area(d.values); });
 
-  svg.selectAll(".symbol2").each(function(s) {
+  svg.selectAll(".annotBand").each(function(s) {
     d3.select(this).selectAll("g.annot").transition().duration(duration)
       .attr("transform", function(d) { return standardTranslate(s, d); });
   });
@@ -886,7 +844,7 @@ function lineGraph() {
       .attr("d", function(d) { return area(d.values); });
       */
 
-  svg.selectAll(".symbol2").each(function(s) {
+  svg.selectAll(".annotBand").each(function(s) {
     d3.select(this).selectAll("g.annot").transition().duration(duration)
       .attr("transform", function(d) { return standardTranslate(s, d); });
   });
