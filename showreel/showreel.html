@@ -373,7 +373,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
         if (interactionMode == InteractEnum.SELECT) {
           var xcoord = xcoord2tix(d3.mouse(svg.node())[0]);
           interactionMode = InteractEnum.ENTRY;
-          var r = calcCoords(s, xcoord2tix(d3.mouse(svg.node())[0]));
+          var r = calcCoords(s, xcoord);
           marker.transition().duration(duration/4)
             .attr("r", annotCircleR)
             .style("stroke-width", "2px")
@@ -411,11 +411,8 @@ d3.json(backend + "/view/" + loc, function(heap) {
               }
             })
             .on("blur", function() { setTimeout(blurit, 200); }); // force it to run after
-            // XXX gotta watch out for double-event if you add blur and click
-          var r = calcCoords(s, xcoord);
           form.attr("width", 250).attr("height", "1.5em").style("opacity", 0)
-            .attr("x", r[0])
-            .attr("y", r[1])
+            .attr("x", r[0]).attr("y", r[1])
             .style("visibility", "visible")
             .transition().duration(duration/4)
             .style("opacity", 1);
@@ -427,21 +424,22 @@ d3.json(backend + "/view/" + loc, function(heap) {
       ;
   });
 
-  var g2 = svg.selectAll("g.symbol2")
-          .data(symbols)
-          .enter().append("g").attr("class", "symbol2");
+  // annotations layer
+  svg.selectAll("g.symbol2")
+     .data(symbols)
+     .enter().append("g").attr("class", "symbol2")
+     .each(function (d) { doAnnotations(this, d); });
 
-  g2.each(function (d) { doAnnotations(this, d); });
-
+  // marker layer
   marker = svg.insert("circle")
     .attr("class", "edgeMark")
     .style("visibility", "hidden")
     .attr("r", annotCircleUnfocusR)
-    .style("fill", "#000"); // css-ize me
+    .style("fill", "#000");
 
   // legend
   var legend = svg.append("g")
-    .attr("transform", "translate(" + (width + 20) + ","+margin.top+")");
+    .attr("transform", "translate(" + (width + 20) + "," + margin.top + ")");
   rows = legend.selectAll("g.legendrow")
     .data(symbols)
     .enter().append("g")
@@ -492,11 +490,13 @@ d3.json(backend + "/view/" + loc, function(heap) {
            .on("mouseout", function() {mouseoutBand(s.data.cid)});
         });
 
+  // alright, render time!
   setTimeout(function () { stackedArea(); first = false; }, 0);
 
 });
 
 function reset() {
+  // reset interaction mode, not much else...
   interactionMode = InteractEnum.SELECT;
   marker.style("visibility", "hidden");
   if (form) {
