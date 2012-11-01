@@ -146,9 +146,10 @@ var aggregate; // :: [{y :: Int}]
 // Application modes
 
 var first = true; // first render animates differently
+var dragging = false;
 var InteractEnum = {
   SELECT: 0, // we are selecting a data point to annotate
-  ENTRY: 1   // we have an active form element for annotation
+  ENTRY: 1  // we have an active form element for annotation
 }
 var GraphEnum = {
   STACKED:0,
@@ -207,6 +208,7 @@ function standardTranslate(s, d) {
 
 // mouseoverBand :: Cid -> IO ()
 function mouseoverBand(cid) {
+  if (dragging) return;
   namefield.text(cid2name(cid))
   namebox.style("fill", color(cid))
     .style("opacity", 0.6);
@@ -218,6 +220,7 @@ function mouseoverBand(cid) {
 
 // mouseoutBand :: Cid -> IO ()
 function mouseoutBand(cid) {
+  if (dragging) return;
   namefield.text("")
   namebox.style("opacity", 0);
   rows.selectAll(".bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0);
@@ -478,6 +481,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
     .orient("bottom");
 
   var bounds = [0, timetable.length-1];
+  var moving;
   var vlines = svg.append("g").selectAll(".leyline")
     .data(bounds)
     .enter();
@@ -502,19 +506,41 @@ d3.json(backend + "/view/" + loc, function(heap) {
       .call(postalisman)
       .attr("d", d3.svg.symbol().type("triangle-up").size(100))
       .on("dblclick", function() {
-        bounds = [0, timetable.length-1];
-        svg.selectAll(".talisman").data(bounds).call(postalisman);
-        svg.selectAll(".leyline").data(bounds).call(posleyline);
+        var n = d3.select("#scrublock").node();
+        n.checked = !n.checked;
       })
-      .call(d3.behavior.drag().on("drag", function(d,i) {
+      .call(d3.behavior.drag()
+       .on("dragstart", function(d,i) {dragging = true; moving = bounds[0] == bounds[1] ? -1 : i;})
+       .on("dragend", function() {dragging = false})
+       .on("drag", function() {
         var tix = xcoord2tix(d3.mouse(svg.node())[0]);
-        if (bounds[0] == bounds[1]) {
-          bounds[1] = tix;
-          bounds[0] = tix;
-        } else if (i == 0 && tix > bounds[1] || i == 1 && tix < bounds[0]) {
-          return;
+        var i = moving;
+        if (d3.select("#scrublock").node().checked) {
+          var width = bounds[1] - bounds[0];
+          if (i == 0) {
+            if (tix+width < timetable.length) {
+              bounds = [tix, tix+width];
+            } else {
+              bounds = [timetable.length-1-width, timetable.length-1]
+            }
+          } else { // i == -1 OK here
+            if (tix-width >= 0) {
+              bounds = [tix-width, tix];
+            } else {
+              bounds = [0, width]
+            }
+          }
         } else {
-          bounds[i] = tix;
+          if (i == -1) {
+            i = (tix > bounds[1]) ? 1 : i;
+            i = (tix < bounds[0]) ? 0 : i;
+            if (i == -1) return;
+          }
+          if (i == 0 && tix > bounds[1] || i == 1 && tix < bounds[0]) {
+            return;
+          } else {
+            bounds[i] = tix;
+          }
         }
         svg.selectAll(".talisman").data(bounds).call(postalisman);
         svg.selectAll(".leyline").data(bounds).call(posleyline);
@@ -787,6 +813,6 @@ function lineGraph() {
     <button onclick="normalizedStackedArea()">Normalized Stacked Graph</button>
     <button onclick="overlappingArea()">Overlayed area Graph</button>
     <!--<button onclick="lineGraph()">Line Graph</button>--><br />
-    Double click to reset bounds
+    Lock scrubs together: <input id="scrublock" type="checkbox" />
   </body>
 </html>
