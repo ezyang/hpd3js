@@ -151,6 +151,7 @@ var symbols,   // :: [Series] -- index is Cid
 
 var slim,      // :: [Series] -- index is NOT Cid
     others;    // :: [Series] -- ditto
+var otherband, old_otherband; // :: Series
 
 var shistory = []; // :: [[Series, Series]] -- left is "active", right is "other"
 
@@ -162,6 +163,7 @@ var aggregate; // :: [{y :: Int}]
 var first = true; // first render animates differently
 var dragging = false;
 var singleband = false;
+var zooming_in = false;
 var InteractEnum = {
   SELECT: 0, // we are selecting a data point to annotate
   ENTRY: 1  // we have an active form element for annotation
@@ -510,11 +512,13 @@ function updateLegend(symbols, dur) {
               .style("opacity", 0.6);
           } else {
             zoomdown();
+            zooming_in = true;
           }
           updateAnnotations(slim, duration);
           updateLegend(slim, duration);
           updatePie(slim, duration);
           redraw();
+          zooming_in = false;
         })
         ;
     }).transition().duration(dur/2).style("opacity",1);
@@ -529,19 +533,32 @@ function updateLegend(symbols, dur) {
   legendrow.exit().transition().duration(duration/2).style("opacity", 0).remove();
 }
 
+var otherarc;
 function updatePie(symbols, dur) {
   var pielayout = d3.layout.pie().value(function(s) {return s.sumUsage;}).sort(null);
+  if (zooming_in) {
+    pielayout.startAngle(otherarc.startAngle);
+    pielayout.endAngle(otherarc.endAngle);
+  }
   var inr  = margin.right/2-50;
   var outr = margin.right/2-10;
   var arc = d3.svg.arc().innerRadius(inr).outerRadius(outr);
+  var random = Math.random();
+  var zoomcompare = function(s) {return s.data.cid}
+  var pie = svg.selectAll(".pie");
   // JOIN
-  var pie = svg.selectAll(".pie")
-    .data(pielayout(symbols), function(s) {return s.data.cid});
+  // XXX random hack
+  pie = pie.data(pielayout(symbols), zoomcompare);
+  // EXIT
+  pie.exit().transition().duration(dur/2).attrTween("d", arcOut).style("opacity", 0).remove();
   // UPDATE
-  pie
-    .transition().duration(dur/2).delay(dur/2).attrTween("d", arcTween);
+  if (!zooming_in) {
+    pie.transition().duration(dur/2).delay(dur/2).attrTween("d", arcTween);
+  } else {
+    pie.transition().duration(dur/2).attrTween("d", arcTween);
+  }
   // INSERT
-  pie.enter().insert("path")
+  var path = pie.enter().insert("path")
     .attr("class", "pie")
     .style("opacity", 0)
     .attr("fill", function(s) {return color(s.data.cid)})
@@ -551,12 +568,35 @@ function updatePie(symbols, dur) {
         var cur = d3.select(this);
         cur.on("mouseover", function() {mouseoverBand(s.data.cid)})
            .on("mouseout", function() {mouseoutBand(s.data.cid)});
-        })
-    .transition().duration(dur/2)
-    .attrTween("d", arcTween)
-    .style("opacity", 0.6);
-  // EXIT
-  pie.exit().transition().duration(dur/2).attrTween("d", arcOut).style("opacity", 0).remove();
+        });
+  if (!zooming_in) {
+    path
+      .transition().duration(dur/2)
+      .attrTween("d", arcTween)
+      .style("opacity", 0.6);
+  } else {
+    path.attr("d", arc).transition().duration(dur/2).style("opacity", 0.6);
+  }
+
+  if (zooming_in) {
+    setTimeout(function() {
+      pielayout.startAngle(0);
+      pielayout.endAngle(2 * Math.PI);
+      pie = pie.data(pielayout(symbols), zoomcompare);
+      pie.transition().duration(dur/2).attrTween("d", arcTween);
+      pie.each(function(s) {
+        if (s.data.cid == -1) {
+          otherarc = s;
+        }
+      });
+    }, dur/2+20);
+  }
+
+  pie.each(function(s) {
+    if (s.data.cid == -1) {
+      otherarc = s;
+    }
+  });
 
   function arcTween(a) {
     var i = d3.interpolate(this._current, a);
@@ -578,22 +618,25 @@ function updatePie(symbols, dur) {
 // Load the data!
 
 function zoomdown() {
-  shistory.push([slim, others]);
+  shistory.push([slim, others, otherband]);
 
   slim = others.slice(0);
   slim.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
 
   // we can't render everything, so split it up
   var high = slim.splice(0, showbands - 1);
+  old_otherband = otherband;
   if (slim.length) {
-    var s = {
+    otherband = {
       cid: -1,
       values: sumColumns(slim),
       annotations: []
     };
-    s.maxUsage = d3.max(s.values, function(d) { return d.y; });
-    s.sumUsage = d3.sum(s.values, function(d) { return d.y; });
-    high.push(s);
+    otherband.maxUsage = d3.max(otherband.values, function(d) { return d.y; });
+    otherband.sumUsage = d3.sum(otherband.values, function(d) { return d.y; });
+    high.push(otherband);
+  } else {
+    otherband = null;
   }
   others = slim; // save 'em up
   slim = high;
@@ -608,6 +651,7 @@ function goback() {
   var r = shistory.pop();
   slim = r[0];
   others = r[1];
+  otherband = r[2];
   singleband = false;
   namefield.text("")
   namebox.style("opacity", 0);
@@ -758,6 +802,28 @@ function reset() {
 function stackedArea() {
   reset();
   nextGraph = GraphEnum.STACKED;
+
+  line
+      .y(function(d) { return y(d.y0); });
+
+  area
+      .y0(function(d) { return y(d.y0); })
+      .y1(function(d) { return y(d.y0 + d.y); });
+
+  if (zooming_in) {
+    // add an intermediate stage
+    var prestack = d3.layout.stack()
+        .values(function(s) { return s.values; })
+        .x(function(d,i) { return tix2time(i); })
+        .y(function(d) { return d.y; })
+        .out(function(d, y0, y) { d.y0 = y0; })
+        .offset(function() { return old_otherband.values.map(function (d) {return d.y0}); })
+        .order("reverse");
+    prestack(slim);
+    updateAreas(slim, duration);
+    updateAnnotations(slim, duration);
+  }
+
   var stack = d3.layout.stack()
       .values(function(s) { return s.values; })
       .x(function(d,i) { return tix2time(i); })
@@ -770,21 +836,37 @@ function stackedArea() {
   y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y + d.y0; }))])
   yaxisbox.call(yaxis);
 
-  line
-      .y(function(d) { return y(d.y0); });
-
-  area
-      .y0(function(d) { return y(d.y0); })
-      .y1(function(d) { return y(d.y0 + d.y); });
-
   updateAreas(slim, duration);
   updateAnnotations(slim, duration);
   currGraph = GraphEnum.STACKED;
 }
 
+// XXX lots of duplication
 function normalizedStackedArea() {
   reset();
   nextGraph = GraphEnum.NORMALIZED;
+
+  line
+      .y(function(d,i) { return y(d.y0/aggregate[i].y); });
+
+  area
+      .y0(function(d,i) { return y(d.y0/aggregate[i].y); })
+      .y1(function(d,i) { return y((d.y0 + d.y)/aggregate[i].y); });
+
+  if (zooming_in) {
+    // add an intermediate stage
+    var prestack = d3.layout.stack()
+        .values(function(s) { return s.values; })
+        .x(function(d,i) { return tix2time(i); })
+        .y(function(d) { return d.y; })
+        .out(function(d, y0, y) { d.y0 = y0; })
+        .offset(function() { return old_otherband.values.map(function (d) {return d.y0}); })
+        .order("reverse");
+    prestack(slim);
+    updateAreas(slim, duration);
+    updateAnnotations(slim, duration);
+  }
+
   var stack = d3.layout.stack()
       .values(function(s) { return s.values; })
       .x(function(d,i) { return tix2time(i); })
@@ -797,13 +879,6 @@ function normalizedStackedArea() {
   y
       .domain([0, 1]);
   yaxisbox.call(d3.svg.axis().orient("left").tickFormat(d3.format("%")).scale(y));
-
-  line
-      .y(function(d,i) { return y(d.y0/aggregate[i].y); });
-
-  area
-      .y0(function(d,i) { return y(d.y0/aggregate[i].y); })
-      .y1(function(d,i) { return y((d.y0 + d.y)/aggregate[i].y); });
 
   updateAreas(slim, duration);
   updateAnnotations(slim, duration);
@@ -843,13 +918,6 @@ function overlappingArea() {
   nextGraph = GraphEnum.OVERLAY;
   var g = svg.selectAll(".symbol");
 
-  y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y + d.y0; }))])
-  yaxisbox.call(yaxis);
-
-  slim.forEach(function(s) {
-      s.values.forEach(function(d) {d.y0 = 0;});
-  });
-
   line
       .y(function(d) { return y(d.y); });
 
@@ -857,13 +925,32 @@ function overlappingArea() {
       .y0(height)
       .y1(function(d) { return y(d.y); });
 
+  if (zooming_in) {
+    var prestack = d3.layout.stack()
+        .values(function(s) { return s.values; })
+        .x(function(d,i) { return tix2time(i); })
+        .y(function(d) { return d.y; })
+        .out(function(d, y0, y) { d.y0 = y0; })
+        .order("reverse");
+    prestack(slim);
+    updateAreas(slim, duration);
+    updateAnnotations(slim, duration);
+  }
+
+  y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y + d.y0; }))])
+  yaxisbox.call(yaxis);
+
+  slim.forEach(function(s) {
+      s.values.forEach(function(d) {d.y0 = 0;});
+  });
+
   updateAreas(slim, duration);
   updateAnnotations(slim, duration);
   currGraph = GraphEnum.OVERLAY;
 }
 
     </script>
-    <button onclick="streamgraph()">Stream Graph</button>
+    <!--<button onclick="streamgraph()">Stream Graph</button>-->
     <button onclick="stackedArea()">Stacked Graph</button>
     <button onclick="normalizedStackedArea()">Normalized Stacked Graph</button>
     <button onclick="overlappingArea()">Overlayed area Graph</button>
