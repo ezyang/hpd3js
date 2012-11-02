@@ -125,7 +125,7 @@ makeContiguous k o@((i, x):xs) | k == i    = Just x  : makeContiguous (k+1) xs
 editForm :: Profile -> Form (Text, Textarea)
 editForm profile = renderDivs $ (,)
     <$> areq textField "Title:" (Just (profileTitle profile))
-    <*> areq textareaField "Description:" (Just (profileDescription profile))
+    <*> fmap (fromMaybe (Textarea "")) (aopt textareaField "Description:" (Just (Just (profileDescription profile))))
 
 getEditR :: Hash -> Handler RepHtml
 getEditR hash = do
@@ -202,7 +202,7 @@ annotateForm :: Hash -> Form (Int, Int, Text)
 annotateForm hash = renderDivs $ (,,)
     <$> areq (check validateCostCenter intField) "Cost center:" Nothing
     <*> areq (check validateTimeIndex  intField) "Time index:"  Nothing
-    <*> areq textField "Text:" Nothing
+    <*> fmap (fromMaybe "") (aopt textField "Text:" Nothing)
     where validateCostCenter x | IntMap.member x (Prof.prNames pdata) = Right x
                                | otherwise = Left ("Unknown cost-center" :: Text)
           validateTimeIndex  x | x < 0 = Left ("Time index cannot be negative" :: Text)
