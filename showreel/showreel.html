@@ -270,6 +270,9 @@ function xcoord2tix(xpixel) {
 
 function mkZoom(s) {
   return function() {
+    if (!others.length) {
+      return;
+    }
     if (s.cid >= 0) {
       shistory.push([slim,others]);
       slim = [s];
@@ -842,7 +845,7 @@ function stackedArea(duration) {
       .y0(function(d) { return y(d.y0); })
       .y1(function(d) { return y(d.y0 + d.y); });
 
-  if (zooming_in) {
+  if (zooming_in && old_otherband) {
     // add an intermediate stage
     var prestack = d3.layout.stack()
         .values(function(s) { return s.values; })
@@ -885,7 +888,7 @@ function normalizedStackedArea(duration) {
       .y0(function(d,i) { return y(d.y0/aggregate[i].y); })
       .y1(function(d,i) { return y((d.y0 + d.y)/aggregate[i].y); });
 
-  if (zooming_in) {
+  if (zooming_in && old_otherband) {
     // add an intermediate stage
     var prestack = d3.layout.stack()
         .values(function(s) { return s.values; })

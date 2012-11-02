@@ -78,7 +78,7 @@ getViewR hash = do
                        <a href=@{lpath}>download .hp</a>
                      <div>
                        \#{profileDescription profile} (<a href=@{EditR hash}>Edit</a>)
-                     <iframe width="100%" height="550px" frameborder="0" src=#{showreel} />
+                     <iframe width="100%" height="600px" frameborder="0" src=#{showreel} />
                         |]
         pdata = loadProfile hash
         buildSeries (cid, samples) = object [ "cid"  .= cid
