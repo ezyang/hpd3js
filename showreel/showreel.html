@@ -176,11 +176,11 @@ var interactionMode = InteractEnum.SELECT;
 var currGraph = GraphEnum.STACKED;
 var nextGraph;
 
-function redraw() {
-  if (currGraph == GraphEnum.STACKED) stackedArea();
-  else if (currGraph == GraphEnum.STREAM) streamgraph();
-  else if (currGraph == GraphEnum.OVERLAY) overlappingArea();
-  else if (currGraph == GraphEnum.NORMALIZED) normalizedStackedArea();
+function redraw(dur) {
+  if (currGraph == GraphEnum.STACKED) stackedArea(dur);
+  else if (currGraph == GraphEnum.STREAM) streamgraph(dur);
+  else if (currGraph == GraphEnum.OVERLAY) overlappingArea(dur);
+  else if (currGraph == GraphEnum.NORMALIZED) normalizedStackedArea(dur);
 }
 
 // use these to calculate various parameters regardless of how we've scaled things
@@ -669,6 +669,18 @@ function goback() {
   redraw();
 }
 
+function gofilter() {
+  if (shistory.length >= 2) return; // only valid when back is disabled
+  var filtertext = d3.select("#filter").node().value;
+  others = symbols.filter(function(s) {return nametable[s.cid].search(filtertext) != -1});
+  zoomdown();
+  shistory.pop();
+  updateAnnotations(slim, 0);
+  updateLegend(slim, 0);
+  updatePie(slim, 0);
+  redraw(0);
+}
+
 d3.json(backend + "/view/" + loc, function(heap) {
   symbols   = heap.data;
   timetable = heap.timetable;
@@ -808,7 +820,7 @@ function reset() {
   updateForm(false);
 }
 
-function stackedArea() {
+function stackedArea(duration) {
   reset();
   nextGraph = GraphEnum.STACKED;
 
@@ -851,7 +863,7 @@ function stackedArea() {
 }
 
 // XXX lots of duplication
-function normalizedStackedArea() {
+function normalizedStackedArea(duration) {
   reset();
   nextGraph = GraphEnum.NORMALIZED;
 
@@ -894,7 +906,7 @@ function normalizedStackedArea() {
   currGraph = GraphEnum.NORMALIZED;
 }
 
-function streamgraph() {
+function streamgraph(duration) {
   reset();
   nextGraph = GraphEnum.STREAM;
   var stack = d3.layout.stack()
@@ -922,7 +934,7 @@ function streamgraph() {
   currGraph = GraphEnum.STREAM;
 }
 
-function overlappingArea() {
+function overlappingArea(duration) {
   reset();
   nextGraph = GraphEnum.OVERLAY;
   var g = svg.selectAll(".symbol");
@@ -960,13 +972,13 @@ function overlappingArea() {
 
     </script>
     <!--<button onclick="streamgraph()">Stream Graph</button>-->
-    <button onclick="stackedArea()">Stacked Graph</button>
-    <button onclick="normalizedStackedArea()">Normalized Stacked Graph</button>
-    <button onclick="overlappingArea()">Overlayed area Graph</button>
+    <button onclick="stackedArea(duration)">Stacked Graph</button>
+    <button onclick="normalizedStackedArea(duration)">Normalized Stacked Graph</button>
+    <button onclick="overlappingArea(duration)">Overlayed area Graph</button>
     ~
     <button onclick="goback()">Back</button>
     <!--<button onclick="lineGraph()">Line Graph</button>--><br />
     Lock scrubs together: <input id="scrublock" type="checkbox" />
-    <!--Filter: <input type="text" id="filter" onchange="" />-->
+    Filter: <input type="text" id="filter" onkeyup="gofilter()" />
   </body>
 </html>
