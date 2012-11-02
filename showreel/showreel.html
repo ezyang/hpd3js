@@ -371,10 +371,17 @@ function updateForm(fi) {
               f4: text
               }, function() {
                 var done = false;
-                if (old.length) {
-                  old[0].text = text;
+                if (text.length) {
+                  if (old.length) {
+                    old[0].text = text;
+                  } else {
+                    fi.s.annotations.push({tix: fi.tix, text: text });
+                  }
                 } else {
-                  fi.s.annotations.push({tix: fi.tix, text: text });
+                  if (old.length) {
+                    i = fi.s.annotations.indexOf(old[0]);
+                    fi.s.annotations.splice(i, 1);
+                  }
                 }
                 updateAnnotations(slim);
                 var r = calcCoords(fi.s, fi.tix);

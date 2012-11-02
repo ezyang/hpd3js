@@ -182,7 +182,20 @@ postAnnotateR hash = do
     Entity pid _ <- runDB $ getBy404 (UniqueHash hash)
     ((result, _), _) <- runFormPostNoToken (annotateForm hash) -- XXX temporary no token
     handleForm result $ \(cc, time, text) -> do
-    _ <- runDB . insert $ Annotation pid cc time text
+    -- XXX blah, this should be combinator-ified
+    if Text.null text
+        then do
+            _ <- runDB $ deleteBy (UniqueAnnotation pid cc time)
+            return ()
+        else do
+            old <- runDB $ getBy (UniqueAnnotation pid cc time)
+            case old of
+                Nothing -> do
+                    _ <- runDB $ insert (Annotation pid cc time text)
+                    return ()
+                Just (Entity aid _) -> do
+                    runDB $ update aid [AnnotationText =. text]
+                    return ()
     redirect (ViewR hash)
 
 annotateForm :: Hash -> Form (Int, Int, Text)
