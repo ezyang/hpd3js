@@ -7,7 +7,7 @@ http://bl.ocks.org/1256572
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <script src="http://d3js.org/d3.v2.js"></script>
-    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
     <style type="text/css">
 
 svg {
@@ -68,7 +68,7 @@ svg {
       --> actually should just use the brush thing
   - in general, the backwards animations aren't as pretty
     (mostly disabled right now)
-  - expand a specific band, back, and then expand other, animation doesn't work
+  - if you type too quickly, the animations don't complete
  */
 
 // variable naming convention:
@@ -272,19 +272,20 @@ function xcoord2tix(xpixel) {
 
 function mkZoom(s) {
   return function() {
-    if (!others.length) {
-      return;
+    if (shistory.length >= 1) {
+      $("#filter").prop("disabled", true);
     }
     if (s.cid >= 0) {
-      shistory.push([slim,others]);
+      shistory.push([slim,others,otherband,undercolor]);
       slim = [s];
       others = [];
+      otherband = null;
       singleband = true;
       namefield.text(cid2name(s.cid))
       namebox.style("fill", color(s.cid))
         .style("opacity", 0.6);
     } else {
-      zoomdown();
+      zoomdown(false);
       zooming_in = true;
     }
     updateAnnotations(slim, duration);
@@ -636,9 +637,11 @@ function updatePie(symbols, dur) {
 // ----------------------------------------------------------------------------
 // Load the data!
 
-function zoomdown() {
-  undercolor = origcolor.copy();
-  shistory.push([slim, others, otherband]);
+function zoomdown(filtering) {
+  shistory.push([slim, others, otherband, undercolor]);
+  if (!filtering) {
+    undercolor = origcolor.copy();
+  }
 
   slim = others.slice(0);
   slim.sort(function(a, b) { return b.maxUsage - a.maxUsage; });
@@ -674,9 +677,13 @@ function goback() {
     return;
   }
   var r = shistory.pop();
+  if (shistory.length < 2) {
+    $("#filter").prop("disabled", false);
+  }
   slim = r[0];
   others = r[1];
   otherband = r[2];
+  undercolor = r[3];
   singleband = false;
   namefield.text("")
   namebox.style("opacity", 0);
@@ -689,7 +696,10 @@ function gofilter() {
   if (shistory.length >= 2) return; // only valid when back is disabled
   var filtertext = d3.select("#filter").node().value; // XXX case insensitive?
   others = symbols.filter(function(s) {return nametable[s.cid].search(filtertext) != -1});
-  zoomdown();
+  if (others.length == 0) {
+    return;
+  }
+  zoomdown(true);
   shistory.pop();
   updateAnnotations(slim, 0);
   updateLegend(slim, 0);
@@ -733,7 +743,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
   // this computation needs to be factored out...
   slim = [];
   others = symbols;
-  zoomdown();
+  zoomdown(false);
 
   // aggregate counts for pie chart
   aggregate = sumColumns(slim); // XXX eliminate me
@@ -1001,5 +1011,8 @@ function overlappingArea(duration) {
     <!--<button onclick="lineGraph()">Line Graph</button>--><br />
     Lock scrubs together: <input id="scrublock" type="checkbox" />
     Filter: <input type="text" id="filter" onkeyup="gofilter()" />
+    <script>
+      $("#filter").prop("disabled", false);
+    </script>
   </body>
 </html>
