@@ -227,7 +227,12 @@ postUploadR = do
             defaultLayout $ do
                 setTitle "Not a valid heap profile"
                 [whamlet|<h1>Not a valid heap profile|]
-        Just profile -> do
+        Just profile
+          | null (Prof.prSamples profile) -> do
+            defaultLayout $ do
+                setTitle "Heap profile is empty"
+                [whamlet|<h1>Heap profile is empty|]
+          | otherwise -> do
             let job = Text.pack (Prof.prJob profile)
                 runTime = maybe currentTime posixToUTC (approxidate (Prof.prDate profile))
             _ <- runDB $ do
