@@ -92,10 +92,11 @@ var duration = 1500,
 var annotCircleR = 5;
 var annotCircleUnfocusR = 2;
 
-var undercolor = d3.scale.ordinal().range([
+var origcolor = d3.scale.ordinal().range([
   "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
   "#8c564b", "#e377c2", /*"#7f7f7f", */"#bcbd22", "#17becf"
 ]);
+var undercolor = origcolor.copy();
 // XXX hack
 var color = function(x) {
   if (x == -1) return "#7f7f7f";
@@ -507,7 +508,6 @@ function updateLegend(symbols, dur) {
   legendrow
     .transition()
     .duration(dur/2)
-    .delay(dur/2)
     .style("opacity", 1)
     .attr("transform", function (s,i) { return "translate(" + (width + 20) + ", "+ (i * 22) +")" });
   // INSERT
@@ -636,6 +636,7 @@ function updatePie(symbols, dur) {
 // Load the data!
 
 function zoomdown() {
+  undercolor = origcolor.copy();
   shistory.push([slim, others, otherband]);
 
   slim = others.slice(0);

@@ -1,3 +1,2 @@
-h1 {
-    text-align: center
-}
+#main {margin:4em auto; width:40em;}
+a {text-decoration:underline}

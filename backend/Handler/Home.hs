@@ -52,7 +52,7 @@ getHomeR = do
     profiles <- runDB $ selectList [] [Desc ProfileUploadTime, LimitTo 10]
     let handlerName = "getHomeR" :: Text
     defaultLayout $ do
-        setTitle "hp/d3.js"
+        setTitle "hp/D3.js"
         $(widgetFile "homepage")
 
 getViewR :: Hash -> Handler RepHtmlJson

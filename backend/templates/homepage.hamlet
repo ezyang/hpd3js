@@ -1,7 +1,11 @@
-<h1>hp/d3.js
+<h1>hp/D3.js
 
 <div>
   <div>
+    <p><b>hp/D3.js</b> is an online tool to help you quickly analyze and share 
+      heap profiling results from GHC Haskell.  <a
+      href="http://www.haskell.org/ghc/docs/latest/html/users_guide/prof-heap.html">Learn
+      how to profile your programs</a>, then upload them here! (Or grab the source on <a href="https://github.com/ezyang/hpd3js">GitHub</a>.)
     <p>Recently uploaded profiles:</p>
     <ul>
       $forall Entity _ profile <- profiles
