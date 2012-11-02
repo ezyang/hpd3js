@@ -67,6 +67,7 @@ svg {
   - scrub should have two windows and zoom on the big one
       --> actually should just use the brush thing
   - in general, the backwards animations aren't as pretty
+    (mostly disabled right now)
  */
 
 // variable naming convention:
@@ -265,6 +266,28 @@ function xcoord2tix(xpixel) {
   var rightCand = d3.bisectRight(timetable, xinv);
   var leftCand = rightCand-1;
   return leftCand < 0 || tix2time(rightCand)-xinv < xinv-tix2time(leftCand) ? rightCand : leftCand;
+}
+
+function mkZoom(s) {
+  return function() {
+    if (s.cid >= 0) {
+      shistory.push([slim,others]);
+      slim = [s];
+      others = [];
+      singleband = true;
+      namefield.text(cid2name(s.cid))
+      namebox.style("fill", color(s.cid))
+        .style("opacity", 0.6);
+    } else {
+      zoomdown();
+      zooming_in = true;
+    }
+    updateAnnotations(slim, duration);
+    updateLegend(slim, duration);
+    updatePie(slim, duration);
+    redraw(duration);
+    zooming_in = false;
+  }
 }
 
 function mkAnnotInit(s) {
@@ -510,25 +533,7 @@ function updateLegend(symbols, dur) {
         .on("mouseout", function() {
           mouseoutBand(s.cid);
         })
-        .on("click", function() {
-          if (s.cid >= 0) {
-            shistory.push([slim,others]);
-            slim = [s];
-            others = [];
-            singleband = true;
-            namefield.text(cid2name(s.cid))
-            namebox.style("fill", color(s.cid))
-              .style("opacity", 0.6);
-          } else {
-            zoomdown();
-            zooming_in = true;
-          }
-          updateAnnotations(slim, duration);
-          updateLegend(slim, duration);
-          updatePie(slim, duration);
-          redraw();
-          zooming_in = false;
-        })
+        .on("click", mkZoom(s))
         ;
     }).transition().duration(dur/2).style("opacity",1);
   // INSERT + UPDATE
@@ -539,7 +544,7 @@ function updateLegend(symbols, dur) {
     .style("fill", function (s) { return color(s.cid) })
     .style("opacity", 0.6);
   // EXIT
-  legendrow.exit().transition().duration(duration/2).style("opacity", 0).remove();
+  legendrow.exit().transition().duration(dur/2).style("opacity", 0).remove();
 }
 
 var otherarc;
@@ -576,7 +581,8 @@ function updatePie(symbols, dur) {
         this._current = s;
         var cur = d3.select(this);
         cur.on("mouseover", function() {mouseoverBand(s.data.cid)})
-           .on("mouseout", function() {mouseoutBand(s.data.cid)});
+           .on("mouseout", function() {mouseoutBand(s.data.cid)})
+           .on("click", mkZoom(s.data));
         });
   if (!zooming_in) {
     path
@@ -655,6 +661,11 @@ function zoomdown() {
 
 function goback() {
   if (shistory.length < 2) {
+    var filter = d3.select("#filter").node();
+    if (filter.value) {
+      filter.value = "";
+      gofilter();
+    }
     return;
   }
   var r = shistory.pop();
@@ -664,14 +675,14 @@ function goback() {
   singleband = false;
   namefield.text("")
   namebox.style("opacity", 0);
-  updateLegend(slim, duration);
-  updatePie(slim, duration);
-  redraw();
+  updateLegend(slim, 0);
+  updatePie(slim, 0);
+  redraw(0);
 }
 
 function gofilter() {
   if (shistory.length >= 2) return; // only valid when back is disabled
-  var filtertext = d3.select("#filter").node().value;
+  var filtertext = d3.select("#filter").node().value; // XXX case insensitive?
   others = symbols.filter(function(s) {return nametable[s.cid].search(filtertext) != -1});
   zoomdown();
   shistory.pop();
