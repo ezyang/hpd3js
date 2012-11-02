@@ -701,6 +701,11 @@ d3.json(backend + "/view/" + loc, function(heap) {
   timetable = heap.timetable;
   nametable = heap.nametable;
 
+  if (!symbols.length) {
+    svg.insert("text").attr("transform", "translate("+((width+margin.right+margin.left)/2-130)+","+((height+margin.top+margin.bottom)/2-20)+")").text("No data (profile is empty)");
+    return;
+  }
+
   // domains are data dependent, calculated later
   x = d3.scale.linear().range([0, width])
                        .domain([tix2time(0), tix2time(timetable.length-1)]); // XXX modify me if we do vertical scrub
