@@ -196,7 +196,9 @@ postAnnotateR hash = do
                 Just (Entity aid _) -> do
                     runDB $ update aid [AnnotationText =. text]
                     return ()
-    redirect (ViewR hash)
+    defaultLayout $ do
+        setTitle "Saved"
+        [whamlet|<h1>Saved|]
 
 annotateForm :: Hash -> Form (Int, Int, Text)
 annotateForm hash = renderDivs $ (,,)
