@@ -243,7 +243,7 @@ function mouseoverBand(cid) {
   svg.selectAll(".legendrow .bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
   svg.selectAll(".legendrow .fgbox").filter(function(s) {return s.cid == cid}).style("opacity", 1.0);
   svg.selectAll(".pie").filter(function(s) {return s.data.cid == cid}).style("opacity", 1);
-  svg.selectAll(".symbol .band").filter(function(s) {return s.cid == cid}).style("opacity", 1);
+  svg.selectAll(".symbol").filter(function(s) {return s.cid == cid}).selectAll(".band").style("opacity", 1);
 }
 
 // mouseoutBand :: Cid -> IO ()
@@ -256,7 +256,7 @@ function mouseoutBand(cid) {
   svg.selectAll(".legendrow .bgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0);
   svg.selectAll(".legendrow .fgbox").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
   svg.selectAll(".pie").filter(function(s) {return s.data.cid == cid}).style("opacity", 0.6);
-  svg.selectAll(".symbol .band").filter(function(s) {return s.cid == cid}).style("opacity", 0.6);
+  svg.selectAll(".symbol").filter(function(s) {return s.cid == cid}).selectAll(".band").style("opacity", 0.6);
 }
 
 // xcoord2tix :: Int -> Tix
@@ -280,28 +280,28 @@ function updateAnnotations(symbols, dur) {
     // JOIN
     var annot = d3.select(this).selectAll(".annot").data(s.annotations, function(a) {return a.tix;});
     // UPDATE
-    var params = animateIncremental(dur);
-    annot
-      .transition()
-      .duration(params[0])
-      .delay(function() { params[1](s,i) })
+    annot.transition().duration(dur/2)
+      .style("opacity", 1)
+      .transition().duration(dur/2).delay(dur/2)
       .attr("transform", function(d) { return standardTranslate(s, d); });
     // INSERT
     annot.enter().insert("g", ":first-child")
       .attr("class", "annot")
       .attr("transform", function(d) { return standardTranslate(s, d); }) // XXX bleh, shouldn't be necessary
+      .style("opacity", 0)
       .call(function (g) {
         g.append("circle")
           .attr("r", annotCircleR)
           .style("fill", d3.hsl(color(s.cid)).darker())
         g.append("text")
           .attr("transform", function() { return "translate(9,5)" }); // slight offset
-      });
+      }).
+      transition().duration(dur/2).style("opacity", 1);
     // INSERT + UPDATE
     annot
       .selectAll("text").text(function (a) { return a.text; });
     // EXIT
-    annot.exit().remove();
+    annot.exit().transition().duration(dur/2).style("opacity", 0).remove();
   });
   // EXIT
   annotBand.exit().remove();
@@ -400,6 +400,7 @@ function updateForm(fi) {
     .remove();
 }
 
+/*
 function animateIncremental(duration) {
   var easing = function (t) {return 1 - (1-t)*(1-t)*(1-t);}
   var easeOver = showbands * 150;
@@ -407,22 +408,33 @@ function animateIncremental(duration) {
   var delayFun = function(d, i) { return delayCond ? 0 : easeOver * easing(i/showbands); };
   return [delayCond ? duration : duration/2, delayFun]
 }
+*/
 
 function updateAreas(symbols, dur) {
   // JOIN
   var g = svg.selectAll(".symbolbox").data(d3.range(1));
-  g.enter().insert("g").attr("class", "symbolbox")
+  g.enter().insert("g", ":first-child").attr("class", "symbolbox")
   var symbol = g.selectAll(".symbol").data(symbols, function(s) {return s.cid});
-  symbol.enter().insert("g")
-    .attr("class", "symbol")
-  symbol.exit().remove();
+  // EXIT
+  symbol.exit().transition().duration(dur/2).style("opacity", 0).remove();
   // UPDATE
+  symbol.transition().duration(dur/2).style("opacity", 1);
+  symbol.each(function(s) {
+    d3.select(this).selectAll(".band").transition().duration(dur/2).delay(dur/2).attr("d", area(s.values));
+  });
+  // ENTER
+  var enter = symbol.enter().insert("g")
+    .attr("class", "symbol")
+    .style("opacity", "0")
+    .transition().duration(dur/2).style("opacity", 1);
+  // ENTER + UPDATE
   symbol.each(function(s, i) {
     // JOIN (boring)
     var band = d3.select(this).selectAll(".band").data(d3.range(1));
     band.enter().append("path") // we want small areas to render on TOP
       .attr("class", "band")
       .style("fill", color(s.cid))
+      .attr("d", area(s.values))
       .on("mouseover", function() {
         mouseoverBand(s.cid);
         updateMarkerSelect({st: MarkerEnum.UNFOCUSED, s: s, mouse: d3.mouse(svg.node())})
@@ -449,19 +461,22 @@ function updateAreas(symbols, dur) {
     band
       .style("opacity", 0.6);
   });
-  var params = animateIncremental(dur);
-  symbol.transition().duration(params[0])
-    .select(".band")
-      .delay(params[1])
-      .attr("d", function(s) { return area(s.values); })
 }
 
 function updateLegend(symbols, dur) {
   // JOIN
   var legendrow = svg.selectAll(".legendrow").data(symbols, function(s) {return s.cid});
+  // UPDATE
+  legendrow
+    .transition()
+    .duration(dur/2)
+    .delay(dur/2)
+    .style("opacity", 1)
+    .attr("transform", function (s,i) { return "translate(" + (width + 20) + ", "+ (i * 22) +")" });
+  // INSERT
   legendrow.enter().insert("g")
     .attr("class", "legendrow")
-    .attr("transform", function (s,i) { return "translate(" + (width + 20) + ", "+ 0 +")" })
+    .attr("transform", function (s,i) { return "translate(" + (width + 20) + ", "+ (i * 22) +")" })
     .style("opacity", 0)
     .each(function(s, i) {
       var cur = d3.select(this);
@@ -502,14 +517,8 @@ function updateLegend(symbols, dur) {
           redraw();
         })
         ;
-    });
-  // UPDATE
-  legendrow
-    .transition()
-    .duration(dur/2)
-    .delay(dur/2)
-    .style("opacity", 1)
-    .attr("transform", function (s,i) { return "translate(" + (width + 20) + ", "+ (i * 22) +")" });
+    }).transition().duration(dur/2).style("opacity",1);
+  // INSERT + UPDATE
   legendrow.selectAll(".bgbox")
     .style("fill", function(s) { return color(s.cid) })
     .style("opacity", 0);
@@ -528,8 +537,13 @@ function updatePie(symbols, dur) {
   // JOIN
   var pie = svg.selectAll(".pie")
     .data(pielayout(symbols), function(s) {return s.data.cid});
+  // UPDATE
+  pie
+    .transition().duration(dur/2).delay(dur/2).attrTween("d", arcTween);
+  // INSERT
   pie.enter().insert("path")
     .attr("class", "pie")
+    .style("opacity", 0)
     .attr("fill", function(s) {return color(s.data.cid)})
     .attr("transform", "translate("+(width+margin.left+57)+","+(margin.top+margin.bottom+height-margin.right/2-50)+")")
     .each(function(s) {
@@ -537,11 +551,10 @@ function updatePie(symbols, dur) {
         var cur = d3.select(this);
         cur.on("mouseover", function() {mouseoverBand(s.data.cid)})
            .on("mouseout", function() {mouseoutBand(s.data.cid)});
-        });
-  // UPDATE
-  pie
-    .style("opacity", 0.6)
-    .transition().duration(dur/2).delay(dur/2).attrTween("d", arcTween);
+        })
+    .transition().duration(dur/2)
+    .attrTween("d", arcTween)
+    .style("opacity", 0.6);
   // EXIT
   pie.exit().transition().duration(dur/2).attrTween("d", arcOut).style("opacity", 0).remove();
 
