@@ -60,16 +60,13 @@ svg {
 
 /*
  known bugs:
-  - click on annotation dot should trigger textbox
-  - delete annotation by clearing contents
-  - annotation edits don't work
   - axes sometimes don't render properly on refresh
   - cannot save annotations to other
   - disappear captions when they're not around
   - interaction mechanism is not clear about how to interact with the scrubs
   - scrub should have two windows and zoom on the big one
       --> actually should just use the brush thing
-  - pie doesn't do the right thing
+  - in general, the backwards animations aren't as pretty
  */
 
 // variable naming convention:
@@ -270,13 +267,28 @@ function xcoord2tix(xpixel) {
   return leftCand < 0 || tix2time(rightCand)-xinv < xinv-tix2time(leftCand) ? rightCand : leftCand;
 }
 
+function mkAnnotInit(s) {
+  return function() {
+    var mouse = d3.mouse(svg.node());
+    if (interactionMode == InteractEnum.SELECT) {
+      updateMarker({st: MarkerEnum.FOCUSED, s: s, mouse: mouse});
+      updateForm({cid: s.cid, tix: xcoord2tix(mouse[0]), s: s});
+      interactionMode = InteractEnum.ENTRY;
+    } else if (interactionMode == InteractEnum.ENTRY) {
+      updateForm(false);
+      updateMarker({st: MarkerEnum.UNFOCUSED, s: s, mouse: mouse});
+      interactionMode = InteractEnum.SELECT;
+    }
+  };
+}
+
 // ----------------------------------------------------------------------------
 // Update functions; the workhorses
 
 function updateAnnotations(symbols, dur) {
   // JOIN
   var annotBand = svg.selectAll(".annotBand").data(symbols, function(s) {return s.cid});
-  annotBand.enter().append("g")
+  annotBand.enter().insert("g", ".marker")
     .attr("class", "annotBand");
   annotBand.each(function (s,i) {
     // JOIN
@@ -295,6 +307,7 @@ function updateAnnotations(symbols, dur) {
         g.append("circle")
           .attr("r", annotCircleR)
           .style("fill", d3.hsl(color(s.cid)).darker())
+          .on("click", mkAnnotInit(s))
         g.append("text")
           .attr("transform", function() { return "translate(9,5)" }); // slight offset
       }).
@@ -455,18 +468,7 @@ function updateAreas(symbols, dur) {
         mouseoutBand(s.cid);
         updateMarkerSelect({st: MarkerEnum.HIDDEN})
       })
-      .on("click", function() {
-        var mouse = d3.mouse(svg.node());
-        if (interactionMode == InteractEnum.SELECT) {
-          updateMarker({st: MarkerEnum.FOCUSED, s: s, mouse: mouse});
-          updateForm({cid: s.cid, tix: xcoord2tix(mouse[0]), s: s});
-          interactionMode = InteractEnum.ENTRY;
-        } else if (interactionMode == InteractEnum.ENTRY) {
-          updateForm(false);
-          updateMarker({st: MarkerEnum.UNFOCUSED, s: s, mouse: mouse});
-          interactionMode = InteractEnum.SELECT;
-        }
-      });
+      .on("click", mkAnnotInit(s));
     band
       .style("opacity", 0.6);
   });
