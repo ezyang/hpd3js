@@ -274,6 +274,7 @@ function mkZoom(s) {
   return function() {
     if (shistory.length >= 1) {
       $("#filter").prop("disabled", true);
+      $("#backb").prop("disabled", false);
     }
     if (s.cid >= 0) {
       shistory.push([slim,others,otherband,undercolor]);
@@ -674,11 +675,15 @@ function goback() {
       filter.value = "";
       gofilter();
     }
+    $("#backb").prop("disabled", true);
     return;
   }
   var r = shistory.pop();
   if (shistory.length < 2) {
     $("#filter").prop("disabled", false);
+    if (d3.select("#filter").node().value == "") {
+      $("#backb").prop("disabled", true);
+    }
   }
   slim = r[0];
   others = r[1];
@@ -695,6 +700,11 @@ function goback() {
 function gofilter() {
   if (shistory.length >= 2) return; // only valid when back is disabled
   var filtertext = d3.select("#filter").node().value; // XXX case insensitive?
+  if (filtertext != "") {
+    $("#backb").prop("disabled", false);
+  } else {
+    $("#backb").prop("disabled", true);
+  }
   others = symbols.filter(function(s) {return nametable[s.cid].search(filtertext) != -1});
   if (others.length == 0) {
     return;
@@ -1007,12 +1017,13 @@ function overlappingArea(duration) {
     <button onclick="normalizedStackedArea(duration)">Normalized Stacked Graph</button>
     <button onclick="overlappingArea(duration)">Overlayed area Graph</button>
     ~
-    <button onclick="goback()">Back</button>
+    <button id="backb" onclick="goback()">Back</button>
     <!--<button onclick="lineGraph()">Line Graph</button>--><br />
     Lock scrubs together: <input id="scrublock" type="checkbox" />
     Filter: <input type="text" id="filter" onkeyup="gofilter()" />
     <script>
       $("#filter").prop("disabled", false);
+      $("#backb").prop("disabled", true);
     </script>
   </body>
 </html>
