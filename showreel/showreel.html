@@ -412,7 +412,7 @@ function updateForm(fi) {
               f2: fi.cid,
               f3: fi.tix,
               f4: text
-              }, function() {
+              }).complete(function() {
                 var done = false;
                 if (text.length) {
                   if (old.length) {
