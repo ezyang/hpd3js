@@ -114,6 +114,16 @@ var svg = d3.select("body").append("svg")
   .append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
+svg.append("text")
+    .attr("transform", "translate("+(width+14)+","+(height+17)+")")
+    .style("font-size", "12px")
+    .text("seconds");
+
+svg.append("text")
+    .attr("transform", "translate(-20,0)rotate(90)")
+    .style("font-size", "12px")
+    .text("bytes");
+
 var namegroup = svg.append("g");
 
 var namebox = namegroup.append("rect")
