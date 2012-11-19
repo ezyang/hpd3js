@@ -6,18 +6,27 @@ http://bl.ocks.org/1256572
 <html>
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <script src="http://d3js.org/d3.v2.js"></script>
-    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
+    <script src="../backend/static/js/jquery-1.8.2.js"></script>
+    <script src="../backend/static/js/jquery.fireEvent.js"></script>
+    <script src="../backend/static/js/jquery-ui.js"></script>
+    <script src="../backend/static/js/ultbuttons.js"></script>
+    <script src="../backend/static/js/d3.v2.js"></script>
     <script src="../backend/static/js/visualization.js"></script>
+    <link href="../backend/static/css/bootstrap.css" rel="stylesheet" type="text/css" />
+    <link href="../backend/static/css/jquery-ui.css" rel="stylesheet" type="text/css" />
     <link href="../backend/static/css/view.css" rel="stylesheet" type="text/css" />
   </head>
   <body>
+    <div class="container">
     <script>
       heapgraph(
-        d3.select("body"),
+        d3.select(".container"),
         "http://heap.ezyang.com",
         window.location.hash ? window.location.hash.substr(1) : "ee0029431bb4cf2941d0444782e7f291000214a6"
       );
     </script>
-  </body>
+    <p>This is test page intended for people who can't setup the Yesod server;
+    by default, it grabs data from <code>http://heap.ezyang.com</code>.
+    You can change what visualization is shown by appending <code>#hash</code> to the URL.</p>
+    </div>
 </html>
