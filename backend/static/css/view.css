@@ -1,3 +1,11 @@
+.container {
+  width: 800px;
+}
+
+.controls {
+  margin-top: 1em;
+}
+
 svg {
   display: block;
   margin: auto;

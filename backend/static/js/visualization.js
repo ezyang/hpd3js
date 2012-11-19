@@ -80,7 +80,7 @@ var namefield = namegroup.append("text")
   .attr("transform", "translate(2,-10)")
   .attr("class", "namefield");
 
-var controls = container.append("div");
+var controls = container.append("div").attr("class", "controls");
 var types = controls.append("span");
 types.selectAll(".graphtype")
   .data([["Stacked Graph", stackedArea],
