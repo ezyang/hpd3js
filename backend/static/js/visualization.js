@@ -22,8 +22,7 @@ function heapgraph(container, backend, loc) {
 
 // ----------------------------------------------------------------------------
 // some parameters
-
-var interpol = "linear"; // "basis" will cause problems with annotation placement
+var interpol = "linear";
 var showbands = 10; // how many bands to show (the last band will be "OTHER")
 
 var margin = {top: 30, right: 200, bottom: 40, left: 50},
@@ -740,7 +739,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
     .enter();
   function posleyline(m) {
     m.attr("x", function(d,i) {return i ? x(tix2time(d))+2 : 0})
-     .attr("width", function(d,i) {return i ? (width-x(tix2time(d))-2) : x(tix2time(d))});
+     .attr("width", function(d,i) {return Math.max(0, i ? (width-x(tix2time(d))-2) : x(tix2time(d)))});
   }
   function postalisman(m) {
     m.attr("transform", function(d) {return "translate("+x(tix2time(d))+","+(height+30)+")";});

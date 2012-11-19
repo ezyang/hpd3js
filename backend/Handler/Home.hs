@@ -60,13 +60,13 @@ getViewR hash = do
     Entity pid profile <- runDB $ getBy404 (UniqueHash hash)
     annotations <- runDB $ selectList [AnnotationProfileId ==. pid] [Asc AnnotationCostCenter]
     let lpath    = StaticR (StaticRoute [uploadDirectory, unHash hash] [])
-        -- Iframe is temporary hack before we merge the two codebases
-        showreel = "http://ezyang.github.com/hpd3js/showreel/showreel.html#" ++ Text.unpack (unHash hash)
+        jspath   = StaticR (StaticRoute ["js", "visualization.js"] [])
         sliceAnnot (Entity _ a) = (annotationCostCenter a,
                                   [object ["tix" .= annotationTimeIndex a, "text" .= annotationText a]])
         annotMap = IntMap.fromAscListWith (++) (map sliceAnnot annotations)
     let html = do
             setTitle . toHtml $ profileTitle profile
+            addStylesheet (StaticR (StaticRoute ["css", "view.css"] []))
             $(widgetFile "view")
         pdata = loadProfile hash
         buildSeries (cid, samples) = object [ "cid"  .= cid

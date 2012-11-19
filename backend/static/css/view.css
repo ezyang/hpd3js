@@ -1,0 +1,43 @@
+svg {
+  display: block;
+  margin: auto;
+  font-family: "Helvetica Neue";
+}
+
+.line {
+  fill: none;
+  stroke: #000;
+  stroke-width: 2px;
+}
+
+.annot circle {
+  stroke: #000;
+  stroke-width: 2px;
+}
+
+.annot text {
+  font-size: 12px;
+}
+
+.band {
+  /*
+  transition-property: opacity;
+  transition-duration: 100ms;
+  transition-timing-function: linear;
+  */
+}
+
+.axis {
+  font-size:12px;
+}
+
+.axis path, .axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.namefield {
+  font-size:12px;
+}
+
