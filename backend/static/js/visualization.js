@@ -2,7 +2,8 @@ function heapgraph(container, backend, loc) {
 
 /*
  known bugs:
-  - axes sometimes don't render properly on refresh
+  - percent -> bytes transitions preserve the "zero", which is a bit jarring
+    because the scale changes
   - cannot save annotations to other
   - disappear captions when they're not around
   - interaction mechanism is not clear about how to interact with the scrubs
@@ -860,7 +861,8 @@ function stackedArea(duration) {
   stack(slim);
 
   y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y + d.y0; }))])
-  yaxisbox.call(yaxis);
+  yaxisbox.transition().duration(duration/2).delay(duration/2)
+    .call(yaxis);
 
   updateAreas(slim, duration);
   updateAnnotations(slim, duration);
@@ -903,8 +905,9 @@ function normalizedStackedArea(duration) {
   stack(slim);
 
   y
-      .domain([0, 1]);
-  yaxisbox.call(d3.svg.axis().orient("left").tickFormat(d3.format("%")).scale(y));
+      .domain([0, d3.max(sumColumns(slim).map(function(d,i) {return d.y/aggregate[i].y}))]);
+  yaxisbox.transition().duration(duration/2).delay(duration/2)
+      .call(d3.svg.axis().orient("left").tickFormat(d3.format("%")).scale(y));
 
   updateAreas(slim, duration);
   updateAnnotations(slim, duration);
@@ -925,7 +928,8 @@ function streamgraph(duration) {
   stack(slim);
 
   y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y + d.y0; }))])
-  yaxisbox.call(yaxis);
+  yaxisbox.transition().duration(duration/2).delay(duration/2)
+    .call(yaxis);
 
   line
       .y(function(d) { return y(d.y0); });
@@ -972,7 +976,8 @@ function overlappingArea(duration) {
       .y1(function(d) { return y(d.y); });
 
   y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y; }))])
-  yaxisbox.call(yaxis);
+  yaxisbox.transition().duration(duration/2).delay(duration/2)
+    .call(yaxis);
 
   slim.forEach(function(s) {
       s.values.forEach(function(d) {d.y0 = 0;});
