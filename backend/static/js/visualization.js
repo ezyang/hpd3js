@@ -4,7 +4,7 @@ function heapgraph(container, backend, loc) {
  known bugs:
   - percent -> bytes transitions preserve the "zero", which is a bit jarring
     because the scale changes
-  - disappear captions when they're not around
+  - disappear captions when they're not around (scrubs)
   - interaction mechanism is not clear about how to interact with the scrubs
   - scrub should have two windows and zoom on the big one
       --> actually should just use the brush thing
