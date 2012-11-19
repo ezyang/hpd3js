@@ -67,19 +67,7 @@ getViewR hash = do
         annotMap = IntMap.fromAscListWith (++) (map sliceAnnot annotations)
     let html = do
             setTitle . toHtml $ profileTitle profile
-            [whamlet|
-                     <h1>
-                       <a href=@{HomeR}>
-                         \#{profileTitle profile}
-                     <div>
-                       <code>#{profileJob profile}</code>
-                     <div>
-                       \#{format (profileRunTime profile)} (uploaded #{format (profileUploadTime profile)});
-                       <a href=@{lpath}>download .hp</a>
-                     <div>
-                       \#{profileDescription profile} (<a href=@{EditR hash}>Edit</a>)
-                     <iframe width="100%" height="600px" frameborder="0" src=#{showreel} />
-                        |]
+            $(widgetFile "view")
         pdata = loadProfile hash
         buildSeries (cid, samples) = object [ "cid"  .= cid
                                             , "values" .= array (map makePoint (insertMissing samples timetable))
