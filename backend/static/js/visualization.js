@@ -4,7 +4,6 @@ function heapgraph(container, backend, loc) {
  known bugs:
   - percent -> bytes transitions preserve the "zero", which is a bit jarring
     because the scale changes
-  - cannot save annotations to other
   - disappear captions when they're not around
   - interaction mechanism is not clear about how to interact with the scrubs
   - scrub should have two windows and zoom on the big one
@@ -454,16 +453,24 @@ function updateAreas(symbols, dur) {
       .attr("d", area(s.values))
       .on("mouseover", function() {
         mouseoverBand(s.cid);
-        updateMarkerSelect({st: MarkerEnum.UNFOCUSED, s: s, mouse: d3.mouse(svg.node())})
+        if (s.cid != -1) {
+          updateMarkerSelect({st: MarkerEnum.UNFOCUSED, s: s, mouse: d3.mouse(svg.node())})
+        } else {
+          updateMarkerSelect({st: MarkerEnum.HIDDEN})
+        }
       })
       .on("mousemove", function() {
-        updateMarkerSelect({st: MarkerEnum.UNFOCUSED, s: s, mouse: d3.mouse(svg.node())})
+        if (s.cid != -1) {
+          updateMarkerSelect({st: MarkerEnum.UNFOCUSED, s: s, mouse: d3.mouse(svg.node())})
+        } else {
+          updateMarkerSelect({st: MarkerEnum.HIDDEN})
+        }
       })
       .on("mouseout", function() {
         mouseoutBand(s.cid);
         updateMarkerSelect({st: MarkerEnum.HIDDEN})
       })
-      .on("click", mkAnnotInit(s));
+      .on("click", s.cid != -1 ? mkAnnotInit(s) : mkZoom(s));
     band
       .style("opacity", 0.6);
   });
