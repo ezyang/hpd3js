@@ -1,0 +1,6 @@
+- Integrating the site with the GHC documentation on heap profiling
+  (esp detecting command line arguments and giving some commentary
+  about what things mean) + user testing would be a good idea
+- Username support
+- Better recently uploaded profiles list
+- Multi-display
