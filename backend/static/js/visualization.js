@@ -12,6 +12,9 @@ function heapgraph(container, backend, loc) {
   - needs a little more help text for people who have never interpreted heap profiles
     (esp. documenting what the filter box is searching on)
   - pineapple chart is useless when zoomed in on a single type
+  - buttons should stop being clickable during transition
+  - annotations should have an anti-cluttering algorithm if there are many
+    of them (but I have yet to see anyone use annotations seriously so far...)
 
   scrubs related things (might remove scrubs at some point)
   - disappear captions when they're not around (since they were not selected by scrubs)
