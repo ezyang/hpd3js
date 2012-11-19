@@ -8,8 +8,9 @@
   <a href=@{lpath}>download .hp</a>
 <div>
   #{profileDescription profile} (<a href=@{EditR hash}>Edit</a>)
-<script src="http://d3js.org/d3.v2.js" />
-<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js" />
-<script src=@{jspath} />
-<script>
-  heapgraph(d3.select("body"), "", "#{unHash hash}"); // ick! escaping!
+<div id="visualization">
+  <script src=@{jQueryPath} />
+  <script src=@{d3jsPath} />
+  <script src=@{visualizationPath} />
+  <script>
+    heapgraph(d3.select("#visualization"), "", "#{unHash hash}"); // ick! escaping!

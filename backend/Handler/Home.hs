@@ -35,9 +35,16 @@ import Data.Time.Git
 uploadDirectory :: IsString a => a
 uploadDirectory = "uploaded"
 
+staticPath :: [Text] -> Route App
+staticPath xs = StaticR (StaticRoute xs [])
+
+visualizationPath, d3jsPath, jQueryPath :: Route App
+visualizationPath = staticPath ["js", "visualization.js"]
+d3jsPath          = staticPath ["js", "d3.v2.js"]
+jQueryPath        = staticPath ["js", "jquery-1.8.2.js"]
+
 format :: UTCTime -> String
 format = formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S UTC"
-
 -- Unsafe IO so that the results can be lazy.  Since it's by hash,
 -- the contents are invariant, making this pretty safe.  We
 -- assume that forcing pdata is sufficient to close the file
@@ -59,8 +66,7 @@ getViewR :: Hash -> Handler RepHtmlJson
 getViewR hash = do
     Entity pid profile <- runDB $ getBy404 (UniqueHash hash)
     annotations <- runDB $ selectList [AnnotationProfileId ==. pid] [Asc AnnotationCostCenter]
-    let lpath    = StaticR (StaticRoute [uploadDirectory, unHash hash] [])
-        jspath   = StaticR (StaticRoute ["js", "visualization.js"] [])
+    let lpath = staticPath [uploadDirectory, unHash hash]
         sliceAnnot (Entity _ a) = (annotationCostCenter a,
                                   [object ["tix" .= annotationTimeIndex a, "text" .= annotationText a]])
         annotMap = IntMap.fromAscListWith (++) (map sliceAnnot annotations)
