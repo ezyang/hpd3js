@@ -105,9 +105,9 @@ types.selectAll(".graphtype")
 types.jq().buttonset();
 controls.append("span").text(" ");
 controls.append("button").attr("id", "backb").on("click", goback).text("Back").property("disabled", true).jq().button();
-controls.append("div").call(function(span) {
-  span.append("span").text("Lock scrubs together: ");
-  span.append("input").attr("id", "scrublock").attr("type", "checkbox");
+controls.append("div").style("margin-top", "0.5em").call(function(span) {
+  //span.append("span").text("Lock scrubs together: ");
+  span.append("input").attr("id", "scrublock").attr("type", "checkbox").style("display", "none");
   span.append("span").text("Filter: ");
   span.append("input").attr("id", "filter").attr("type", "text").on("keyup", gofilter).property("disabled", false);
 });
@@ -635,7 +635,10 @@ function zoomdown(filtering) {
   // we can't render everything, so split it up
   var high = slim.splice(0, showbands - 1);
   old_otherband = otherband;
-  if (slim.length) {
+  if (slim.length == 1) {
+      high.push(slim[0]);
+      otherband = null;
+  } else if (slim.length) {
     otherband = {
       cid: -1,
       values: sumColumns(slim),
@@ -926,8 +929,32 @@ function normalizedStackedArea(duration) {
 
   y
       .domain([0, d3.max(sumColumns(slim).map(function(d,i) {return d.y/aggregate[i].y}))]);
+  // XXX cribbed from D3.js
+  function d3_scaleExtent(domain) {
+    var start = domain[0], stop = domain[domain.length - 1];
+    return start < stop ? [start, stop] : [stop, start];
+  }
+  function d3_scale_linearTickRange(domain, m) {
+    var extent = d3_scaleExtent(domain),
+        span = extent[1] - extent[0],
+        step = Math.pow(10, Math.floor(Math.log(span / m) / Math.LN10)),
+        err = m / span * step;
+
+    // Filter ticks to get closer to the desired count.
+    if (err <= .15) step *= 10;
+    else if (err <= .35) step *= 5;
+    else if (err <= .75) step *= 2;
+
+    // Round start and stop values to step interval.
+    extent[0] = Math.ceil(extent[0] / step) * step;
+    extent[1] = Math.floor(extent[1] / step) * step + step * .5; // inclusive
+    extent[2] = step;
+    return extent;
+  }
+  // needs the -2 since we're multiplying by 100
+  var precision = Math.max(0, -Math.floor(Math.log(d3_scale_linearTickRange(y.domain(), 10)[2]) / Math.LN10 + .01)-2);
   yaxisbox.transition().duration(duration/2).delay(zooming_in ? duration/2 : 0)
-      .call(d3.svg.axis().orient("left").tickFormat(d3.format("%")).scale(y));
+      .call(d3.svg.axis().orient("left").tickFormat(d3.format("."+precision+"%")).scale(y));
 
   updateAreas(slim, duration);
   updateAnnotations(slim, duration);
