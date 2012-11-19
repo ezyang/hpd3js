@@ -944,14 +944,15 @@ function overlappingArea(duration) {
   nextGraph = GraphEnum.OVERLAY;
   var g = svg.selectAll(".symbol");
 
-  line
-      .y(function(d) { return y(d.y); });
+  if (zooming_in && old_otherband) {
 
-  area
-      .y0(height)
-      .y1(function(d) { return y(d.y); });
+    line
+        .y(function(d) { return y(d.y0); });
 
-  if (zooming_in) {
+    area
+        .y0(function(d) { return y(d.y0); })
+        .y1(function(d) { return y(d.y0 + d.y); });
+    // Note: this is doing stacked rendering!
     var prestack = d3.layout.stack()
         .values(function(s) { return s.values; })
         .x(function(d,i) { return tix2time(i); })
@@ -963,7 +964,14 @@ function overlappingArea(duration) {
     updateAnnotations(slim, duration);
   }
 
-  y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y + d.y0; }))])
+  line
+      .y(function(d) { return y(d.y); });
+
+  area
+      .y0(height)
+      .y1(function(d) { return y(d.y); });
+
+  y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y; }))])
   yaxisbox.call(yaxis);
 
   slim.forEach(function(s) {
