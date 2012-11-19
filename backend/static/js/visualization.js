@@ -306,7 +306,7 @@ function updateAnnotations(symbols, dur) {
     // UPDATE
     annot.transition().duration(dur/2)
       .style("opacity", 1)
-      .transition().duration(dur/2).delay(dur/2)
+      .transition().duration(dur/2).delay(zooming_in ? dur/2 : 0)
       .attr("transform", function(d) { return standardTranslate(s, d); });
     // INSERT
     annot.enter().insert("g", ":first-child")
@@ -453,7 +453,7 @@ function updateAreas(symbols, dur) {
   // UPDATE
   symbol.transition().duration(dur/2).style("opacity", 1);
   symbol.each(function(s) {
-    d3.select(this).selectAll(".band").transition().duration(dur/2).delay(dur/2).attr("d", area(s.values));
+    d3.select(this).selectAll(".band").transition().duration(dur/2).delay(zooming_in ? dur/2 : 0).attr("d", area(s.values));
   });
   // ENTER
   var enter = symbol.enter().insert("g")
@@ -561,11 +561,7 @@ function updatePie(symbols, dur) {
   // EXIT
   pie.exit().transition().duration(dur/2).attrTween("d", arcOut).style("opacity", 0).remove();
   // UPDATE
-  if (!zooming_in) {
-    pie.transition().duration(dur/2).delay(dur/2).attrTween("d", arcTween);
-  } else {
-    pie.transition().duration(dur/2).attrTween("d", arcTween);
-  }
+  pie.transition().duration(dur/2).delay(zooming_in ? 0 : dur/2).attrTween("d", arcTween);
   // INSERT
   var path = pie.enter().insert("path")
     .attr("class", "pie")
@@ -885,7 +881,7 @@ function stackedArea(duration) {
   stack(slim);
 
   y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y + d.y0; }))])
-  yaxisbox.transition().duration(duration/2).delay(duration/2)
+  yaxisbox.transition().duration(duration/2).delay(zooming_in ? duration/2 : 0)
     .call(yaxis);
 
   updateAreas(slim, duration);
@@ -930,7 +926,7 @@ function normalizedStackedArea(duration) {
 
   y
       .domain([0, d3.max(sumColumns(slim).map(function(d,i) {return d.y/aggregate[i].y}))]);
-  yaxisbox.transition().duration(duration/2).delay(duration/2)
+  yaxisbox.transition().duration(duration/2).delay(zooming_in ? duration/2 : 0)
       .call(d3.svg.axis().orient("left").tickFormat(d3.format("%")).scale(y));
 
   updateAreas(slim, duration);
@@ -952,7 +948,7 @@ function streamgraph(duration) {
   stack(slim);
 
   y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y + d.y0; }))])
-  yaxisbox.transition().duration(duration/2).delay(duration/2)
+  yaxisbox.transition().duration(duration/2).delay(zooming_in ? duration/2 : 0)
     .call(yaxis);
 
   line
@@ -1000,7 +996,7 @@ function overlappingArea(duration) {
       .y1(function(d) { return y(d.y); });
 
   y.domain([0, d3.max(slim[0].values.map(function(d) { return d.y; }))])
-  yaxisbox.transition().duration(duration/2).delay(duration/2)
+  yaxisbox.transition().duration(duration/2).delay(zooming_in ? duration/2 : 0)
     .call(yaxis);
 
   slim.forEach(function(s) {
