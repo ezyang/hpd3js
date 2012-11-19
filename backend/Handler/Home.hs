@@ -38,10 +38,14 @@ uploadDirectory = "uploaded"
 staticPath :: [Text] -> Route App
 staticPath xs = StaticR (StaticRoute xs [])
 
-visualizationPath, d3jsPath, jQueryPath :: Route App
+-- TODO: minified versions of these
+visualizationPath, d3jsPath, jQueryPath, jQueryUIPath, jQueryFireEventPath, jQueryUltButtonsPath :: Route App
 visualizationPath = staticPath ["js", "visualization.js"]
 d3jsPath          = staticPath ["js", "d3.v2.js"]
 jQueryPath        = staticPath ["js", "jquery-1.8.2.js"]
+jQueryUIPath      = staticPath ["js", "jquery-ui.js"]
+jQueryFireEventPath = staticPath ["js", "jquery.fireEvent.js"]
+jQueryUltButtonsPath = staticPath ["js", "ultbuttons.js"]
 
 format :: UTCTime -> String
 format = formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S UTC"
@@ -72,7 +76,9 @@ getViewR hash = do
         annotMap = IntMap.fromAscListWith (++) (map sliceAnnot annotations)
     let html = do
             setTitle . toHtml $ profileTitle profile
-            addStylesheet (StaticR (StaticRoute ["css", "view.css"] []))
+            -- order is important
+            addStylesheet (staticPath ["css", "jquery-ui.css"])
+            addStylesheet (staticPath ["css", "view.css"])
             $(widgetFile "view")
         pdata = loadProfile hash
         buildSeries (cid, samples) = object [ "cid"  .= cid

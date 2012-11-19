@@ -10,6 +10,9 @@
   #{profileDescription profile} (<a href=@{EditR hash}>Edit</a>)
 <div id="visualization">
   <script src=@{jQueryPath} />
+  <script src=@{jQueryUIPath} />
+  <script src=@{jQueryFireEventPath} />
+  <script src=@{jQueryUltButtonsPath} />
   <script src=@{d3jsPath} />
   <script src=@{visualizationPath} />
   <script>

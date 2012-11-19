@@ -1,3 +1,5 @@
+d3.selection.prototype.jq = function() {return $(this.node())}
+
 function heapgraph(container, backend, loc) {
 
 /*
@@ -79,16 +81,30 @@ var namefield = namegroup.append("text")
   .attr("class", "namefield");
 
 var controls = container.append("div");
-controls.append("span").selectAll("button")
+var types = controls.append("span");
+types.selectAll(".graphtype")
   .data([["Stacked Graph", stackedArea],
          ["Normalized Stacked Graph", normalizedStackedArea],
          ["Overlayed Area Graph", overlappingArea]
-         ]).enter()
-  .append("button")
-  .on("click", function(d) {d[1](duration);})
-  .text(function(d) {return d[0]})
-controls.append("span").text(" ~ ");
-controls.append("button").attr("id", "backb").on("click", goback).text("Back").property("disabled", true);
+         ])
+  .enter()
+  .append("span")
+  .attr("class", "graphtype")
+  .call(function(span) {
+    span.append("input")
+      .attr("type", "radio")
+      .attr("name", "graphtype")
+      .attr("value", function(_,i) {return i;})
+      .attr("id", function(_,i) {return "graphtype" + i})
+      .property("checked", function(d) {return d[1] == stackedArea ? true : false;})
+      .on("change", function(d) { if (this.checked) d[1](duration); });
+    span.append("label")
+      .attr("for", function(_,i) {return "graphtype" + i})
+      .text(function(d) {return d[0]});
+  });
+types.jq().buttonset();
+controls.append("span").text(" ");
+controls.append("button").attr("id", "backb").on("click", goback).text("Back").property("disabled", true).jq().button();
 controls.append("div").call(function(span) {
   span.append("span").text("Lock scrubs together: ");
   span.append("input").attr("id", "scrublock").attr("type", "checkbox");
@@ -238,7 +254,7 @@ function mkZoom(s) {
   return function() {
     if (shistory.length >= 1) {
       $("#filter").prop("disabled", true);
-      $("#backb").prop("disabled", false);
+      $("#backb").button("enable");
     }
     if (s.cid >= 0) {
       shistory.push([slim,others,otherband,undercolor]);
@@ -353,8 +369,9 @@ function updateForm(fi) {
   var r = fi ? calcCoords(fi.s, fi.tix) : [0,0]; // hope these doesn't fuck me over too bad
   annotForm.enter().append("foreignObject")
     .attr("class", "annotForm")
-    .attr("width", 250)
-    .attr("height", "1.5em")
+    // XXX fiddly
+    .attr("width", 228)
+    .attr("height", 30)
     .attr("x", r[0])
     .attr("y", r[1])
     .style("opacity", 0)
@@ -647,14 +664,14 @@ function goback() {
       filter.value = "";
       gofilter();
     }
-    $("#backb").prop("disabled", true);
+    $("#backb").button("disable");
     return;
   }
   var r = shistory.pop();
   if (shistory.length < 2) {
     $("#filter").prop("disabled", false);
     if (d3.select("#filter").node().value == "") {
-      $("#backb").prop("disabled", true);
+      $("#backb").button("disable");
     }
   }
   slim = r[0];
@@ -673,9 +690,9 @@ function gofilter() {
   if (shistory.length >= 2) return; // only valid when back is disabled
   var filtertext = d3.select("#filter").node().value; // XXX case insensitive?
   if (filtertext != "") {
-    $("#backb").prop("disabled", false);
+    $("#backb").button("enable");
   } else {
-    $("#backb").prop("disabled", true);
+    $("#backb").button("disable");
   }
   others = symbols.filter(function(s) {return nametable[s.cid].search(filtertext) != -1});
   if (others.length == 0) {
