@@ -5,14 +5,19 @@ function heapgraph(container, backend, loc) {
 /*
  known bugs:
   - percent -> bytes transitions preserve the "zero", which is a bit jarring
-    because the scale changes
-  - disappear captions when they're not around (scrubs)
+    because the scale changes, see https://github.com/mbostock/d3/issues/911
+  - in general, the backwards animations aren't as pretty
+    (as a stop-gap, no animations on BACK)
+  - if you type too quickly, the animations don't complete
+  - needs a little more help text for people who have never interpreted heap profiles
+    (esp. documenting what the filter box is searching on)
+  - pineapple chart is useless when zoomed in on a single type
+
+  scrubs related things (might remove scrubs at some point)
+  - disappear captions when they're not around (since they were not selected by scrubs)
   - interaction mechanism is not clear about how to interact with the scrubs
   - scrub should have two windows and zoom on the big one
       --> actually should just use the brush thing
-  - in general, the backwards animations aren't as pretty
-    (mostly disabled right now)
-  - if you type too quickly, the animations don't complete
   - on zoom, if scrubs are narrowed, pie data is not correct
  */
 
@@ -58,15 +63,10 @@ var svg = container.append("svg")
   .append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-svg.append("text")
-    .attr("transform", "translate("+(width+14)+","+(height+17)+")")
-    .style("font-size", "12px")
-    .text("seconds");
-
-svg.append("text")
-    .attr("transform", "translate(5,0)rotate(90)")
-    .style("font-size", "12px")
-    .text("bytes");
+// maybe could be a little fancier...
+var loading = svg.append("text")
+    .attr("transform", "translate("+(width/2-margin.left)+","+(height/2-margin.top)+")")
+    .text("Loading...");
 
 var namegroup = svg.append("g");
 
@@ -561,7 +561,7 @@ function updatePie(symbols, dur) {
   // EXIT
   pie.exit().transition().duration(dur/2).attrTween("d", arcOut).style("opacity", 0).remove();
   // UPDATE
-  pie.transition().duration(dur/2).delay(zooming_in ? 0 : dur/2).attrTween("d", arcTween);
+  pie.transition().duration(dur/2).delay(zooming_in ? dur/2 : 0).attrTween("d", arcTween);
   // INSERT
   var path = pie.enter().insert("path")
     .attr("class", "pie")
@@ -706,6 +706,7 @@ function gofilter() {
 }
 
 d3.json(backend + "/view/" + loc, function(heap) {
+
   symbols   = heap.data;
   timetable = heap.timetable;
   nametable = heap.nametable;
@@ -749,9 +750,14 @@ d3.json(backend + "/view/" + loc, function(heap) {
 // ----------------------------------------------------------------------------
 // Build some stuff
 
+  // XXX initial fade-in is done by setting up transitions on all of the
+  // constituent elements, but I imagine that a more robust way to do it
+  // is to fade in some giant container element with everything in it,
+  // and splat everything on that at opacity: 0
+
   // Order is important!
-  updateLegend(slim, 0);
-  updatePie(slim);
+  updateLegend(slim, duration/3);
+  updatePie(slim, duration/3);
 
   // some axes
   xaxis = d3.svg.axis().scale(x).orient("bottom");
@@ -778,7 +784,7 @@ d3.json(backend + "/view/" + loc, function(heap) {
     .call(posleyline);
   vlines.append("path")
       .attr("class", "talisman")
-      .style("opacity", 0.7)
+      .style("opacity", 0)
       .call(postalisman)
       .attr("d", d3.svg.symbol().type("triangle-up").size(100))
       .on("dblclick", function() {
@@ -821,11 +827,16 @@ d3.json(backend + "/view/" + loc, function(heap) {
         svg.selectAll(".talisman").data(bounds).call(postalisman);
         svg.selectAll(".leyline").data(bounds).call(posleyline);
         updatePie(slim.map(function (s) {return {cid: s.cid, sumUsage: d3.sum(s.values.slice(bounds[0], bounds[1]+1), function(d) {return d.y})}}), 0);
-      }));
+      }))
+    .transition().duration(duration/3)
+      .style("opacity", 0.7);
 
   svg.append("g")
     .attr("transform", "translate(0,"+height+")")
     .attr("class", "axis")
+    .style("opacity", 0)
+    .transition().duration(duration/3)
+    .style("opacity", 1)
     .call(xaxis);
 
   yaxis = d3.svg.axis()
@@ -835,10 +846,28 @@ d3.json(backend + "/view/" + loc, function(heap) {
 
   yaxisbox = svg.append("g")
     .attr("class", "axis")
-    .call(yaxis);
+    .style("opacity", 0)
+    .transition().duration(duration/3)
+    .style("opacity", 1);
+  // don't actually setup the axis, since we don't know the domain
+
+  svg.append("text")
+      .attr("transform", "translate("+(width+14)+","+(height+17)+")")
+      .style("font-size", "12px")
+      .text("seconds")
+      .style("opacity", 0)
+      .transition().duration(duration/3).style("opacity",1);
+
+  svg.append("text")
+      .attr("transform", "translate(5,0)rotate(90)")
+      .style("font-size", "12px")
+      .text("bytes")
+      .style("opacity", 0)
+      .transition().duration(duration/3).style("opacity",1);
 
   // alright, render time!
-  setTimeout(function () { stackedArea(); first = false; }, 0);
+  loading.transition().duration(duration/3).style("opacity", 0).remove();
+  setTimeout(function () { stackedArea(duration/3); first = false; }, 0);
 
 });
 
