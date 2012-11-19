@@ -64,7 +64,7 @@ svg.append("text")
     .text("seconds");
 
 svg.append("text")
-    .attr("transform", "translate(-20,0)rotate(90)")
+    .attr("transform", "translate(5,0)rotate(90)")
     .style("font-size", "12px")
     .text("bytes");
 
