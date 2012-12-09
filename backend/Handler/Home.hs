@@ -111,6 +111,7 @@ getViewR hash = do
                       ]
     -- Watch out, no sensitive data allowed!
     setHeader "Access-Control-Allow-Origin" "*"
+    setHeader "Vary" "Accept, Accept-Language"
     defaultLayoutJson html json
 
 -- Invariant: input list must be ascending and distinct.
