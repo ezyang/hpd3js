@@ -16,4 +16,4 @@
   <script src=@{d3jsPath} />
   <script src=@{visualizationPath} />
   <script>
-    heapgraph(d3.select("#visualization"), "", "#{unHash hash}"); // ick! escaping!
+    heapgraph(d3.select("#visualization"), "?json", "#{unHash hash}"); // ick! escaping!
