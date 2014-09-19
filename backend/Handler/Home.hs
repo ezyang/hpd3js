@@ -24,11 +24,14 @@ import Data.Serialize
 import Import
 import Yesod.Static
 
+import Control.Monad.Trans.Resource
 import Crypto.Conduit
-import Crypto.Hash.SHA1 (SHA1)
+import Crypto.Hash.CryptoAPI hiding (Hash)
 import Profiling.Heap.Read (readProfile)
 import qualified Profiling.Heap.Types as Prof
 import Data.Time.Git
+
+import Data
 
 -- XXX Gotta do history
 
@@ -57,7 +60,7 @@ loadProfile :: Hash -> Prof.Profile
 loadProfile hash = fromMaybe (error "Bad profile in store!") (unsafePerformIO (readProfile path))
     where path = "static" </> uploadDirectory </> Text.unpack (unHash hash)
 
-getHomeR :: Handler RepHtml
+getHomeR :: Handler Html
 getHomeR = do
     (formWidget, formEnctype) <- generateFormPost uploadForm
     profiles <- runDB $ selectList [] [Desc ProfileUploadTime, LimitTo 10]
@@ -66,7 +69,7 @@ getHomeR = do
         setTitle "hp/D3.js"
         $(widgetFile "homepage")
 
-getViewR :: Hash -> Handler RepHtmlJson
+getViewR :: Hash -> Handler TypedContent
 getViewR hash = do
     Entity pid profile <- runDB $ getBy404 (UniqueHash hash)
     annotations <- runDB $ selectList [AnnotationProfileId ==. pid] [Asc AnnotationCostCenter]
@@ -107,12 +110,14 @@ getViewR hash = do
         timetable = reverse (map fst (Prof.prSamples pdata))
         json = object [ "data"      .= array (map buildSeries (IntMap.toList (foldl' addSample IntMap.empty (Prof.prSamples pdata))))
                       , "timetable" .= array timetable
-                      , "nametable" .= array (makeContiguous 0 (IntMap.toAscList (Prof.prNames pdata)))
+                      , "nametable" .= array (map (fmap Text.decodeUtf8) (makeContiguous 0 (IntMap.toAscList (Prof.prNames pdata))))
                       ]
     -- Watch out, no sensitive data allowed!
     setHeader "Access-Control-Allow-Origin" "*"
     setHeader "Vary" "Accept, Accept-Language"
-    defaultLayoutJson html json
+    selectRep $ do
+        provideRep $ defaultLayout html
+        provideRep $ return json
 
 -- Invariant: input list must be ascending and distinct.
 -- Given j, arranges that element (i, x) in the input is Just x in
@@ -128,7 +133,7 @@ editForm profile = renderDivs $ (,)
     <$> areq textField "Title:" (Just (profileTitle profile))
     <*> fmap (fromMaybe (Textarea "")) (aopt textareaField "Description:" (Just (Just (profileDescription profile))))
 
-getEditR :: Hash -> Handler RepHtml
+getEditR :: Hash -> Handler Html
 getEditR hash = do
     Entity _ profile <- runDB $ getBy404 (UniqueHash hash)
     (formWidget, formEnctype) <- generateFormPost (editForm profile)
@@ -141,7 +146,7 @@ getEditR hash = do
                 <input type="submit" value="Submit">
             |]
 
-handleForm :: Yesod a => FormResult t -> (t -> GHandler sub a RepHtml) -> GHandler sub a RepHtml
+handleForm :: FormResult t -> (t -> Handler Html) -> Handler Html
 handleForm result f = case result of
     FormSuccess r -> f r
     FormFailure es -> defaultLayout $ do
@@ -156,7 +161,7 @@ handleForm result f = case result of
         setTitle "Missing data"
         [whamlet|<h1>Missing data|]
 
-postEditR :: Hash -> Handler RepHtml
+postEditR :: Hash -> Handler Html
 postEditR hash = do
     Entity pid profile <- runDB $ getBy404 (UniqueHash hash)
     ((result, _), _) <- runFormPost (editForm profile)
@@ -164,7 +169,7 @@ postEditR hash = do
     runDB $ update pid [ProfileTitle =. title, ProfileDescription =. description]
     redirect (ViewR hash)
 
-getAnnotateR :: Hash -> Handler RepHtml
+getAnnotateR :: Hash -> Handler Html
 getAnnotateR hash = do
     Entity _ _ <- runDB $ getBy404 (UniqueHash hash)
     (formWidget, formEnctype) <- generateFormPost (annotateForm hash)
@@ -178,7 +183,7 @@ getAnnotateR hash = do
             |]
 
 
-postAnnotateR :: Hash -> Handler RepHtml
+postAnnotateR :: Hash -> Handler Html
 postAnnotateR hash = do
     Entity pid _ <- runDB $ getBy404 (UniqueHash hash)
     ((result, _), _) <- runFormPostNoToken (annotateForm hash) -- XXX temporary no token
@@ -213,12 +218,12 @@ annotateForm hash = renderDivs $ (,,)
                                | otherwise = Right x
           pdata = loadProfile hash
 
-postUploadR :: Handler RepHtml
+postUploadR :: Handler Html
 postUploadR = do
     ((result, _), _) <- runFormPost uploadForm
     handleForm result $ \(file, title) -> do
     bhash :: SHA1 <- liftIO . runResourceT $ fileSource file $$ sinkHash
-    let hash = Text.decodeUtf8 . Base16.encode $ encode bhash
+    let hash = Text.decodeUtf8 . Base16.encode . encode $ bhash
     _ <- liftIO $ evaluate hash
     currentTime <- liftIO getCurrentTime
     let path = "static" </> uploadDirectory </> Text.unpack hash

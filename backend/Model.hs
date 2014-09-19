@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, DeriveDataTypeable #-}
 
 module Model where
 
@@ -7,9 +7,9 @@ import Yesod
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import Database.Persist.Quasi
+import Data.Typeable (Typeable)
 
-newtype Hash = Hash { unHash :: Text }
-    deriving (Show, Read, Eq, PathPiece, PersistField)
+import Data
 
 -- You can define all of your database entities in the entities file.
 -- You can find more information on persistent and how to declare entities

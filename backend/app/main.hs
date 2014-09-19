@@ -1,13 +1,11 @@
-import Prelude              (IO)
 import Yesod.Default.Config (fromArgs)
 import Yesod.Default.Main   (defaultMain)
 import Settings             (parseExtra)
 import Application          (makeApplication)
-import Network.Wai.Handler.FastCGI (run)
+import qualified Network.Wai.Handler.FastCGI as FastCGI
 import Control.Monad
 
--- main :: IO ()
--- main = defaultMain (fromArgs parseExtra) makeApplication
+-- NB: This is not the default runner!
 
 main :: IO ()
-main = fromArgs parseExtra >>= makeApplication >>= run
+main = fromArgs parseExtra >>= makeApplication >>= FastCGI.run . fst
