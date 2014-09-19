@@ -252,5 +252,5 @@ postUploadR = do
 
 uploadForm :: Form (FileInfo, Text)
 uploadForm = renderDivs $ (,)
-    <$> fileAFormReq "Upload a heap profile:"
-    <*> areq textField "Title:" Nothing
+    <$> fileAFormReq ("Upload a heap profile:" { fsName = Just "file" })
+    <*> areq textField ("Title:" { fsName = Just "title" }) Nothing

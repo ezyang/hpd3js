@@ -15,3 +15,6 @@
     <form method=post action=@{UploadR}#form enctype=#{formEnctype}>
       ^{formWidget}
       <input type="submit" value="Upload">
+    <pre>
+      # or on the command line
+      curl -F "file=@$FILE" -F "title=$TITLE" http://heap.ezyang.com/upload
