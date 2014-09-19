@@ -79,6 +79,7 @@ library
                  , directory                     >= 1.1
                  , warp                          >= 1.3
                  , data-default
+                 , dlist                         >= 0.7
                  , crypto-conduit
                  , cryptohash
                  , cryptohash-cryptoapi
