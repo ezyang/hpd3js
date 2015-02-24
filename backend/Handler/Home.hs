@@ -10,7 +10,8 @@ import Control.Exception (evaluate)
 
 import qualified Data.IntMap as IntMap
 import Data.IntMap (IntMap) -- not strict
-import Data.List (foldl')
+import Data.List (foldl',groupBy,genericLength)
+import Data.Ratio
 import Data.Time
 import Data.String
 import Data.Function
@@ -103,7 +104,8 @@ getViewR hash = do
 
         -- given a list [1.0,1.0,1.1,1.1], interpolates duplicate entries so
         -- every entry is unique, e.g. [1.0,1.05,1.1,1.05]
-        expand (x:xs) = let l = length (x:xs) in map (\n -> x + n / l) [0..l]
+        expand :: [Double] -> [Double]
+        expand (x:xs) = let l = length (x:xs) in map (\n -> x + fromIntegral n / fromIntegral l) [0..l]
         expand _ = error "Invariant broken on group"
 
         timetable = map fst samples
@@ -111,7 +113,7 @@ getViewR hash = do
         -- Need to do this to deal with multiple entries with the same
         -- timestamp
         samples = concat
-                . map (\(t,d) -> (expand t, d))
+                . map (\xs -> zip (expand (map fst xs)) (map snd xs))
                 . groupBy (on (==) fst)
                 . reverse
                 $ Prof.prSamples pdata

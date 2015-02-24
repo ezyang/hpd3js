@@ -121,6 +121,7 @@ instance YesodPersist App where
     runDB = defaultRunDB persistConfig connPool
 instance YesodPersistRunner App where
     getDBRunner = defaultGetDBRunner connPool
+instance YesodAuthPersist App where
 
 instance YesodAuth App where
     type AuthId App = UserId
