@@ -256,7 +256,12 @@ postUploadR = do
                 case existing of
                     Nothing -> insert (Profile title (Hash hash) job (Textarea "") currentTime runTime)
                     Just (Entity pid _) -> return pid
-            redirect (ViewR (Hash hash))
+            let url = ViewR (Hash hash)
+            defaultLayout $ do
+                setTitle "Uploaded"
+                [whamlet|
+                    <h1>
+                      <a href=@{url}>Uploaded (click to view)|]
 
 uploadForm :: Form (FileInfo, Text)
 uploadForm = renderDivs $ (,)
