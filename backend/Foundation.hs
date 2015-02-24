@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 module Foundation where
 
 import Prelude

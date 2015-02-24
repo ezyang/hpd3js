@@ -97,18 +97,26 @@ getViewR hash = do
         insertMissing ((t,x):xs) (y:ys) | t == y    = x : insertMissing xs ys
                                         | otherwise = 0 : insertMissing ((t,x):xs) ys
 
-        -- Combines adjacent list entries with the same index
-        fx [new] [] = [new]
-        fx [(time', cost')] old@((time, cost):xs) | time' == time = (time, cost + cost'):xs
-                                                  | otherwise     = (time', cost'):old
-        fx _ _ = error "Invariant broken on fx"
-
-        addSampleData time xs (cid, cost) = IntMap.insertWith fx cid [(time, cost)] xs
+        addSampleData time xs (cid, cost) = IntMap.insertWith (++) cid [(time, cost)] xs
         addSample :: IntMap [(Prof.Time, Prof.Cost)] -> (Prof.Time, Prof.ProfileSample) -> IntMap [(Prof.Time, Prof.Cost)]
         addSample xs (time, sample) = foldl' (addSampleData time) xs sample
 
-        timetable = reverse (map fst (Prof.prSamples pdata))
-        json = object [ "data"      .= array (map buildSeries (IntMap.toList (foldl' addSample IntMap.empty (Prof.prSamples pdata))))
+        -- given a list [1.0,1.0,1.1,1.1], interpolates duplicate entries so
+        -- every entry is unique, e.g. [1.0,1.05,1.1,1.05]
+        expand (x:xs) = let l = length (x:xs) in map (\n -> x + n / l) [0..l]
+        expand _ = error "Invariant broken on group"
+
+        timetable = map fst samples
+
+        -- Need to do this to deal with multiple entries with the same
+        -- timestamp
+        samples = concat
+                . map (\(t,d) -> (expand t, d))
+                . groupBy (on (==) fst)
+                . reverse
+                $ Prof.prSamples pdata
+
+        json = object [ "data"      .= array (map buildSeries (IntMap.toList (foldl' addSample IntMap.empty samples)))
                       , "timetable" .= array timetable
                       , "nametable" .= array (map (fmap Text.decodeUtf8) (makeContiguous 0 (IntMap.toAscList (Prof.prNames pdata))))
                       ]
